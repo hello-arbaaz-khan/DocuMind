@@ -3,7 +3,6 @@ import { Outlet, useLocation } from "react-router-dom";
 import Toast from "./components/Common/Toast";
 import Sidebar from "./components/Sidebar/Sidebar";
 import TopBar from "./components/Sidebar/TopBar";
-import QuickInfoPanel from "./components/Sidebar/QuickInfoPanel";
 import UploadModal from "./components/Upload/UploadModal";
 import { usePolling } from "./hooks/usePolling";
 import { useDriveAutoSync } from "./hooks/useDriveAutoSync";
@@ -13,7 +12,6 @@ import { useViewNavigate, viewFromPath } from "./router/paths";
 // selects (see Root.jsx for the route table and routes/pages.jsx for pages).
 const App = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [quickInfoOpen, setQuickInfoOpen] = useState(true);
   const location = useLocation();
   const navigateToView = useViewNavigate();
   useDriveAutoSync();
@@ -33,22 +31,10 @@ const App = () => {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          <TopBar
-            onNavigate={navigateToView}
-            quickInfoOpen={quickInfoOpen}
-            onToggleQuickInfo={() => setQuickInfoOpen((open) => !open)}
-          />
+          <TopBar onNavigate={navigateToView} />
 
-          <div className="flex min-h-0 flex-1">
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <Outlet context={outletContext} />
-            </div>
-
-            {quickInfoOpen ? (
-              <div className="hidden lg:block">
-                <QuickInfoPanel onClose={() => setQuickInfoOpen(false)} onNavigate={navigateToView} />
-              </div>
-            ) : null}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <Outlet context={outletContext} />
           </div>
         </div>
       </div>
