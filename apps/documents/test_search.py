@@ -17,8 +17,8 @@ from apps.documents.Retrieval.pgvector_retriever import (
     DjangoPgVectorRepository,
 )
 from apps.documents.services.search import DocumentSearchService
-from drive_service.app.Apis.dependencies import get_current_user
-from drive_service.app.Apis.routers.search import (
+from app.Apis.dependencies import get_current_user
+from app.Apis.routers.search import (
     get_document_search_service,
 )
 from drive_service.main import app
