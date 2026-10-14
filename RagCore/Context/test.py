@@ -9,6 +9,7 @@ def make_result(
     content,
     chunk_index,
     page_number=None,
+    metadata=None,
 ):
     return RetrievalResult(
         chunk_id=chunk_id,
@@ -17,6 +18,7 @@ def make_result(
         score=0.90,
         page_number=page_number,
         chunk_index=chunk_index,
+        metadata=metadata or {},
     )
 
 
@@ -40,11 +42,11 @@ def test_build_context_from_candidates():
 
     context = builder.build(candidates)
 
-    assert context.text == (
-        "First content"
-        "\n\n---\n\n"
-        "Second content"
-    )
+    assert "[Source 1]" in context.text
+    assert "Document ID: doc-1" in context.text
+    assert "First content" in context.text
+    assert "[Source 2]" in context.text
+    assert "Second content" in context.text
 
 
 def test_build_context_preserves_source_information():
@@ -55,6 +57,10 @@ def test_build_context_preserves_source_information():
             "First content",
             0,
             page_number=3,
+            metadata={
+                "filename": "report.pdf",
+                "rerank_score": 0.95,
+            },
         )
     ]
 
@@ -62,15 +68,18 @@ def test_build_context_preserves_source_information():
 
     context = builder.build(candidates)
 
-    assert context.sources == [
-        {
-            "chunk_id": "chunk-1",
-            "document_id": "doc-1",
-            "page_number": 3,
-            "chunk_index": 0,
-            "metadata": {},
-        }
-    ]
+    source = context.sources[0]
+    assert source["source_number"] == 1
+    assert source["chunk_id"] == "chunk-1"
+    assert source["document_id"] == "doc-1"
+    assert source["page_number"] == 3
+    assert source["chunk_index"] == 0
+    assert source["score"] == 0.90
+    assert source["rerank_score"] == 0.95
+    assert source["metadata"] == {
+        "filename": "report.pdf",
+        "rerank_score": 0.95,
+    }
 
 
 def test_build_empty_context():
@@ -136,11 +145,8 @@ def test_build_context_preserves_candidate_order():
 
     context = builder.build(candidates)
 
-    assert context.text == (
-        "Second"
-        "\n\n---\n\n"
-        "First"
-    )
+    assert context.text.index("Second") < context.text.index("First")
+    assert context.text.index("[Source 1]") < context.text.index("[Source 2]")
 
 
 def test_context_config_default_max_chunks():

@@ -197,7 +197,7 @@ def test_planner_creates_single_query(
 
     assert plan.is_multi_step is False
 
-    planner_provider.generate.assert_called_once()
+    planner_provider.generate.assert_not_called()
 
 
 def test_planner_creates_multiple_queries(
@@ -231,7 +231,15 @@ def test_planner_passes_conversation_context(
     real_planner,
     planner_provider,
 ):
-    real_planner.plan(
+    planner_provider.generate.return_value = json.dumps(
+        {
+            "queries": [
+                "What security information does the conversation's OAuth reference discuss?"
+            ]
+        }
+    )
+
+    plan = real_planner.plan(
         "What about its security?",
         conversation_context=(
             "Previous question: What is OAuth?"
@@ -239,6 +247,9 @@ def test_planner_passes_conversation_context(
     )
 
     planner_provider.generate.assert_called_once()
+    assert plan.queries == [
+        "What security information does the conversation's OAuth reference discuss?"
+    ]
 
     _, user_prompt = (
         planner_provider.generate.call_args.args
@@ -283,7 +294,7 @@ def test_planner_wraps_provider_failure(
         match="LLM unavailable",
     ):
         real_planner.plan(
-            "What is RAG?"
+            "Compare RAG and retrieval."
         )
 
 
@@ -300,7 +311,7 @@ def test_planner_rejects_invalid_json(
         match="invalid JSON",
     ):
         real_planner.plan(
-            "What is RAG?"
+            "Compare RAG and retrieval."
         )
 
 
@@ -317,7 +328,7 @@ def test_planner_rejects_missing_queries(
         match="queries list",
     ):
         real_planner.plan(
-            "What is RAG?"
+            "Compare RAG and retrieval."
         )
 
 
@@ -336,7 +347,7 @@ def test_planner_rejects_empty_queries(
         match="no usable queries",
     ):
         real_planner.plan(
-            "What is RAG?"
+            "Compare RAG and retrieval."
         )
 
 
@@ -358,7 +369,7 @@ def test_planner_limits_maximum_subqueries(
     )
 
     plan = real_planner.plan(
-        "Complex question"
+        "Compare RAG, retrieval, embeddings, ranking, and generation."
     )
 
     assert len(plan.queries) == 5
@@ -387,6 +398,7 @@ def test_search_tool_runs_rag_flow(
 
     retrieval_pipeline.retrieve.assert_called_once_with(
         [0.1, 0.2, 0.3],
+        query="normalized question",
         top_k=20,
         document_ids=None,
     )
@@ -414,6 +426,7 @@ def test_search_tool_passes_document_ids(
 
     retrieval_pipeline.retrieve.assert_called_once_with(
         [0.1, 0.2, 0.3],
+        query="normalized question",
         top_k=20,
         document_ids=document_ids,
     )
@@ -493,6 +506,8 @@ def test_executor_executes_single_query(
     executor_search_tool.search.assert_called_once_with(
         "What is RAG?",
         document_ids=None,
+        retrieval_top_k=20,
+        reranking_top_k=5,
     )
 
     assert state.retrieval_attempts == 1
@@ -566,6 +581,8 @@ def test_executor_passes_document_ids(
     executor_search_tool.search.assert_called_once_with(
         "Find common information.",
         document_ids=document_ids,
+        retrieval_top_k=20,
+        reranking_top_k=5,
     )
 
 
@@ -700,6 +717,7 @@ def test_agent_runs_complete_flow(
 def test_agent_passes_conversation_context(
     agent,
     agent_planner,
+    generation_pipeline,
 ):
     conversation_context = (
         "Previous question: What is OAuth?"
@@ -713,6 +731,13 @@ def test_agent_passes_conversation_context(
     agent_planner.plan.assert_called_once_with(
         "What about its security?",
         conversation_context=conversation_context,
+    )
+    generation_pipeline.generate.assert_called_once()
+    assert (
+        generation_pipeline.generate.call_args.kwargs[
+            "conversation_context"
+        ]
+        == conversation_context
     )
 
 

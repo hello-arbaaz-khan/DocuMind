@@ -54,13 +54,17 @@ Rules:
    - multiple independent subjects
    - multiple documents
 
-5. Every query must be independently understandable.
+5. When conversation context is provided, use it to resolve references
+   in the user's question. Rewrite any follow-up query so it is
+   independently understandable without the conversation history.
 
-6. Do not answer the user's question.
+6. Every query must be independently understandable.
 
-7. Do not invent document information.
+7. Do not answer the user's question.
 
-8. Return ONLY valid JSON.
+8. Do not invent document information.
+
+9. Return ONLY valid JSON.
 
 Required format:
 
@@ -118,8 +122,11 @@ Required format:
         # from becoming several noisy searches.
         # ---------------------------------------------------------
 
-        if not self._requires_multiple_queries(
-            normalized_question
+        if (
+            not conversation_context.strip()
+            and not self._requires_multiple_queries(
+                normalized_question
+            )
         ):
             return AgentPlan(
                 queries=[

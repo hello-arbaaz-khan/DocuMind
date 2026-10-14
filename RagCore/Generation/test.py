@@ -40,7 +40,7 @@ def make_context(
 def test_generation_config_defaults():
     config = GenerationConfig()
 
-    assert config.model == "llama-3.3-70b-versatile"
+    assert config.model == "openai/gpt-oss-20b"
     assert config.temperature == 0.2
     assert config.max_tokens == 1024
 
@@ -90,7 +90,9 @@ def test_generation_builds_prompt_from_query_and_context():
     assert "retrieves relevant documents" in user_prompt
     assert "What is RAG?" in user_prompt
     assert "  What is RAG?  " not in user_prompt
-    assert "provided context" in system_prompt
+    assert "using only" in system_prompt
+    assert "retrieved document evidence" in system_prompt
+    assert "not evidence for factual claims" in system_prompt
 
 
 def test_generation_handles_empty_context():
@@ -109,13 +111,32 @@ def test_generation_handles_empty_context():
     )
 
     assert answer == (
-        "The available context does not contain enough information."
+        "The available document excerpts do not contain enough "
+        "information to answer this question reliably."
+    )
+
+    assert provider.calls == []
+
+
+def test_generation_includes_conversation_history_for_follow_up():
+    provider = FakeGenerationProvider()
+
+    pipeline = GenerationPipeline(provider)
+
+    pipeline.generate(
+        make_query("What about its limitations?"),
+        make_context(),
+        conversation_context=(
+            "User: Summarize the study.\n"
+            "Assistant: The study investigates a new method."
+        ),
     )
 
     _, user_prompt = provider.calls[0]
-
-    assert "Context:" in user_prompt
-    assert "Question:" in user_prompt
+    assert "What about its limitations?" in user_prompt
+    assert "Summarize the study." in user_prompt
+    assert "investigates a new method" in user_prompt
+    assert "not document evidence" in user_prompt
 
 
 def test_generation_preserves_context_sources_for_prompt_stage():

@@ -88,6 +88,7 @@ class Agent:
             answer = self.generation_pipeline.generate(
                 query,
                 context,
+                conversation_context=state.conversation_context,
             )
 
             state.final_answer = answer
