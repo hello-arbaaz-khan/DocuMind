@@ -1,7 +1,10 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(
+        env_file=(".env", "drive_service/.env"),
+        extra="ignore",
+    )
 
     google_credentials_file: str = "credentials.json"
     google_token_file: str = "token.json"
@@ -19,9 +22,10 @@ class Settings(BaseSettings):
     google_client_id: str
     google_client_secret: str
     fernet_key: str
-    state_signing_secret: str
-    redis_url: str = "redis://redis:6379/0"
+    state_signing_secret: str | None = None
+    redis_url: str = "redis://127.0.0.1:6379/0"
     drive_service_base_url: str = "http://localhost:8001"
-    frontend_base_url: str
+    frontend_base_url: str = "http://localhost:3000"
+    cors_extra_origins: list[str] = []
 
 settings = Settings()
