@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, LogOut, Moon, PanelRightClose, PanelRightOpen, Settings, Sun } from "lucide-react";
+import { ChevronDown, LogOut, Moon, Settings, Sun } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 
-const TopBar = ({ onNavigate = () => {}, quickInfoOpen = false, onToggleQuickInfo = () => {} }) => {
+const TopBar = ({ onNavigate = () => {} }) => {
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -23,15 +23,6 @@ const TopBar = ({ onNavigate = () => {}, quickInfoOpen = false, onToggleQuickInf
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-end gap-2 border-b border-slate-200 bg-white px-5 dark:border-white/5 dark:bg-[#0a0e17]">
-      <button
-        type="button"
-        onClick={onToggleQuickInfo}
-        title={quickInfoOpen ? "Hide quick info" : "Show quick info"}
-        className="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/5 lg:flex"
-      >
-        {quickInfoOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-      </button>
-
       <button
         type="button"
         onClick={toggleTheme}

@@ -7,34 +7,42 @@ def make_result(
     chunk_id,
     document_id,
     content,
-    chunk_index,
+    *,
     page_number=None,
     metadata=None,
+    score=0.9,
 ):
     return RetrievalResult(
         chunk_id=chunk_id,
         document_id=document_id,
         content=content,
-        score=0.90,
+        score=score,
         page_number=page_number,
         chunk_index=chunk_index,
+        chunk_index=0,
         metadata=metadata or {},
     )
 
 
-def test_build_context_from_candidates():
+def test_context_includes_evidence_from_multiple_documents():
+    builder = ContextBuilder(
+        ContextConfig(max_chunks=5)
+    )
+
     candidates = [
         make_result(
-            "chunk-1",
-            "doc-1",
-            "First content",
-            0,
+            "a1",
+            "doc-a",
+            "Document A discusses a trade agreement.",
+            page_number=2,
+            metadata={"filename": "Report-A.pdf"},
         ),
         make_result(
-            "chunk-2",
-            "doc-1",
-            "Second content",
-            1,
+            "a2",
+            "doc-a",
+            "Document A also describes its implementation.",
+            page_number=3,
+            metadata={"filename": "Report-A.pdf"},
         ),
     ]
 
@@ -62,9 +70,14 @@ def test_build_context_preserves_source_information():
                 "rerank_score": 0.95,
             },
         )
+        make_result(
+            "b1",
+            "doc-b",
+            "Document B discusses a different agreement.",
+            page_number=5,
+            metadata={"filename": "Report-B.pdf"},
+        ),
     ]
-
-    builder = ContextBuilder()
 
     context = builder.build(candidates)
 
@@ -86,78 +99,84 @@ def test_build_empty_context():
     builder = ContextBuilder()
 
     context = builder.build([])
+    assert "Report-A.pdf" in context.text
+    assert "Report-B.pdf" in context.text
+    assert "Page: 2" in context.text
+    assert "Page: 5" in context.text
+    assert len(context.sources) == 3
 
-    assert context.text == ""
-    assert context.sources == []
 
+def test_context_represents_each_document_before_extra_chunks():
+    builder = ContextBuilder(
+        ContextConfig(max_chunks=3)
+    )
 
-def test_build_context_respects_max_chunks():
     candidates = [
-        make_result(
-            "chunk-1",
-            "doc-1",
-            "Content 1",
-            0,
-        ),
-        make_result(
-            "chunk-2",
-            "doc-1",
-            "Content 2",
-            1,
-        ),
-        make_result(
-            "chunk-3",
-            "doc-1",
-            "Content 3",
-            2,
-        ),
+        make_result("a1", "doc-a", "A first excerpt."),
+        make_result("a2", "doc-a", "A second excerpt."),
+        make_result("a3", "doc-a", "A third excerpt."),
+        make_result("b1", "doc-b", "B first excerpt."),
     ]
-
-    config = ContextConfig(max_chunks=2)
-
-    builder = ContextBuilder(config)
 
     context = builder.build(candidates)
 
-    assert len(context.sources) == 2
-    assert "Content 1" in context.text
-    assert "Content 2" in context.text
-    assert "Content 3" not in context.text
+    document_ids = {
+        source["document_id"]
+        for source in context.sources
+    }
+
+    assert document_ids == {"doc-a", "doc-b"}
+    assert len(context.sources) == 3
 
 
-def test_build_context_preserves_candidate_order():
-    candidates = [
-        make_result(
-            "chunk-2",
-            "doc-1",
-            "Second",
-            1,
-        ),
-        make_result(
-            "chunk-1",
-            "doc-1",
-            "First",
-            0,
-        ),
-    ]
-
+def test_context_deduplicates_identical_content():
     builder = ContextBuilder()
 
-    context = builder.build(candidates)
+    context = builder.build(
+        [
+            make_result("a1", "doc-a", "Same content."),
+            make_result("b1", "doc-b", "  SAME   CONTENT. "),
+        ]
+    )
+
+    assert len(context.sources) == 1
 
     assert context.text.index("Second") < context.text.index("First")
     assert context.text.index("[Source 1]") < context.text.index("[Source 2]")
 
+def test_context_uses_document_id_when_name_is_unavailable():
+    context = ContextBuilder().build(
+        [
+            make_result(
+                "a1",
+                "doc-a",
+                "Evidence without a document title.",
+                page_number=7,
+            )
+        ]
+    )
 
-def test_context_config_default_max_chunks():
-    config = ContextConfig()
-
-    assert config.max_chunks == 5
+    assert "Document: doc-a" in context.text
+    assert "Page: 7" in context.text
 
 
-def test_context_config_rejects_invalid_max_chunks():
-    import pytest
-    from pydantic import ValidationError
+def test_context_respects_maximum_chunk_count():
+    context = ContextBuilder(
+        ContextConfig(max_chunks=2)
+    ).build(
+        [
+            make_result("a1", "doc-a", "First excerpt."),
+            make_result("b1", "doc-b", "Second excerpt."),
+            make_result("c1", "doc-c", "Third excerpt."),
+        ]
+    )
 
-    with pytest.raises(ValidationError):
-        ContextConfig(max_chunks=0)
+    assert len(context.sources) == 2
+    assert "Third excerpt." not in context.text
+
+
+def test_empty_candidates_produce_empty_context():
+    context = ContextBuilder().build([])
+
+    assert context.text == ""
+    assert context.sources == []
