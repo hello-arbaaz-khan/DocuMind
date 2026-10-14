@@ -13,6 +13,58 @@ class RecordingGenerationProvider:
         return self.response
 
 
+def make_query(text="What is RAG?"):
+    return Query(text=text)
+
+
+def make_context(
+    text="RAG combines retrieval with generation.",
+    sources=None,
+):
+    return Context(
+        text=text,
+        sources=[] if sources is None else sources,
+    )
+
+
+def test_generation_config_defaults():
+    config = GenerationConfig()
+
+    assert config.model == "openai/gpt-oss-20b"
+    assert config.temperature == 0.2
+    assert config.max_tokens == 1024
+
+
+def test_generation_config_rejects_invalid_temperature():
+    with pytest.raises(ValidationError):
+        GenerationConfig(temperature=-1)
+
+
+def test_generation_config_rejects_invalid_max_tokens():
+    with pytest.raises(ValidationError):
+        GenerationConfig(max_tokens=0)
+
+
+def test_generation_returns_provider_response():
+    provider = FakeGenerationProvider(
+        response="RAG retrieves relevant information before generation."
+    )
+
+    pipeline = GenerationPipeline(provider)
+
+    answer = pipeline.generate(
+        make_query(),
+        make_context(),
+    )
+
+    assert answer == (
+        "RAG retrieves relevant information before generation."
+    )
+
+
+def test_generation_builds_prompt_from_query_and_context():
+    provider = FakeGenerationProvider()
+
 def test_simple_question_uses_direct_answer_instructions():
     provider = RecordingGenerationProvider()
     pipeline = GenerationPipeline(provider)
@@ -28,6 +80,12 @@ def test_simple_question_uses_direct_answer_instructions():
 
     system_prompt, user_prompt = provider.calls[0]
 
+    assert "retrieves relevant documents" in user_prompt
+    assert "What is RAG?" in user_prompt
+    assert "  What is RAG?  " not in user_prompt
+    assert "using only" in system_prompt
+    assert "retrieved document evidence" in system_prompt
+    assert "not evidence for factual claims" in system_prompt
     assert "directly and naturally" in system_prompt
     assert "What is the main finding?" in user_prompt
     assert "12% increase" in user_prompt
@@ -46,6 +104,33 @@ def test_summary_instructions_support_structured_markdown():
         ),
     )
 
+    assert answer == (
+        "The available document excerpts do not contain enough "
+        "information to answer this question reliably."
+    )
+
+    assert provider.calls == []
+
+
+def test_generation_includes_conversation_history_for_follow_up():
+    provider = FakeGenerationProvider()
+
+    pipeline = GenerationPipeline(provider)
+
+    pipeline.generate(
+        make_query("What about its limitations?"),
+        make_context(),
+        conversation_context=(
+            "User: Summarize the study.\n"
+            "Assistant: The study investigates a new method."
+        ),
+    )
+
+    _, user_prompt = provider.calls[0]
+    assert "What about its limitations?" in user_prompt
+    assert "Summarize the study." in user_prompt
+    assert "investigates a new method" in user_prompt
+    assert "not document evidence" in user_prompt
     system_prompt, _ = provider.calls[0]
 
     assert "numbered sections" in system_prompt

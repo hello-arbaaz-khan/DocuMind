@@ -18,6 +18,7 @@ def make_result(
         content=content,
         score=score,
         page_number=page_number,
+        chunk_index=chunk_index,
         chunk_index=0,
         metadata=metadata or {},
     )
@@ -43,6 +44,32 @@ def test_context_includes_evidence_from_multiple_documents():
             page_number=3,
             metadata={"filename": "Report-A.pdf"},
         ),
+    ]
+
+    builder = ContextBuilder()
+
+    context = builder.build(candidates)
+
+    assert "[Source 1]" in context.text
+    assert "Document ID: doc-1" in context.text
+    assert "First content" in context.text
+    assert "[Source 2]" in context.text
+    assert "Second content" in context.text
+
+
+def test_build_context_preserves_source_information():
+    candidates = [
+        make_result(
+            "chunk-1",
+            "doc-1",
+            "First content",
+            0,
+            page_number=3,
+            metadata={
+                "filename": "report.pdf",
+                "rerank_score": 0.95,
+            },
+        )
         make_result(
             "b1",
             "doc-b",
@@ -54,6 +81,24 @@ def test_context_includes_evidence_from_multiple_documents():
 
     context = builder.build(candidates)
 
+    source = context.sources[0]
+    assert source["source_number"] == 1
+    assert source["chunk_id"] == "chunk-1"
+    assert source["document_id"] == "doc-1"
+    assert source["page_number"] == 3
+    assert source["chunk_index"] == 0
+    assert source["score"] == 0.90
+    assert source["rerank_score"] == 0.95
+    assert source["metadata"] == {
+        "filename": "report.pdf",
+        "rerank_score": 0.95,
+    }
+
+
+def test_build_empty_context():
+    builder = ContextBuilder()
+
+    context = builder.build([])
     assert "Report-A.pdf" in context.text
     assert "Report-B.pdf" in context.text
     assert "Page: 2" in context.text
@@ -96,6 +141,8 @@ def test_context_deduplicates_identical_content():
 
     assert len(context.sources) == 1
 
+    assert context.text.index("Second") < context.text.index("First")
+    assert context.text.index("[Source 1]") < context.text.index("[Source 2]")
 
 def test_context_uses_document_id_when_name_is_unavailable():
     context = ContextBuilder().build(

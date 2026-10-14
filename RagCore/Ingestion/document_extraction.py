@@ -31,12 +31,16 @@ class DocumentExtractionEngine:
             # 2. Handle Complex Layout Formats (.pdf, .epub, .html, etc.) via PyMuPDF4LLM
             if ext in DOCUMENT_LAYOUT_FORMATS:
                 page_dicts = pymupdf4llm.to_markdown(file_path, page_chunks=True)
+                
                 pages = [
                     DocumentPage(
-                        page_number=page_dict["metadata"]["page"],
+                        page_number=page_dict["metadata"].get(
+                            "page_number",
+                            page_dict["metadata"].get("page", index + 1),
+                        ),
                         content=str(page_dict["text"]),
                     )
-                    for page_dict in page_dicts
+                    for index, page_dict in enumerate(page_dicts)
                 ]
 
                 if not any(page.content.strip() for page in pages):
