@@ -35,16 +35,10 @@ services:
     volumes:
       - .:/app
       - ~/.cache/huggingface:/root/.cache/huggingface
-      - media-data:/app/media
     ports:
       - "8000:8000"
     env_file:
-      - .env.docker
-    environment:
-      DB_HOST: db
-      DB_PORT: "5432"
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      - .env
     depends_on:
       db:
         condition: service_healthy
@@ -56,17 +50,9 @@ services:
     command: celery -A core worker -l info
     volumes:
       - .:/app
-      - media-data:/app/media
       - ~/.cache/huggingface:/root/.cache/huggingface
     env_file:
-      - .env.docker
-      - ./drive_service/.env.docker
-    environment:
-      DB_HOST: db
-      DB_PORT: "5432"
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      REDIS_URL: redis://redis:6379/0
+      - .env
     depends_on:
       db:
         condition: service_healthy
@@ -74,31 +60,13 @@ services:
         condition: service_healthy
 
   drive_service:
-    build:
-      context: .
-      dockerfile: drive_service/Dockerfile
+    build: ./drive_service
     volumes:
       - ./drive_service:/app
-      - ./apps:/app/apps
-      - ./Workflow:/app/Workflow
-      - ./RagCore:/app/RagCore
-      - ./core:/app/core
-      - ./manage.py:/app/manage.py
-      - media-data:/app/media
-      - ~/.cache/huggingface:/root/.cache/huggingface
     ports:
       - "8001:8001"
     env_file:
-      - .env.docker
-      - ./drive_service/.env.docker
-    environment:
-      DJANGO_SETTINGS_MODULE: core.settings
-      DB_HOST: db
-      DB_PORT: "5432"
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      REDIS_URL: redis://redis:6379/0
-      DATABASE_URL: postgresql://raguser:ragpassword@db:5432/ragdb
+      - ./drive_service/.env
     depends_on:
       db:
         condition: service_healthy
@@ -112,13 +80,8 @@ services:
       - /app/node_modules
     ports:
       - "3000:3000"
-    environment:
-      DJANGO_URL: http://django:8000
-      API_URL: http://drive_service:8001
     depends_on:
       - django
-      - drive_service
 
 volumes:
   postgres-data:
-  media-data:

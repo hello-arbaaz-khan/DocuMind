@@ -2,16 +2,14 @@ from django.conf import settings
 from django.db import models
 from pgvector.django import VectorField
 from django.db.models.functions import Now
-from RagCore.Ingestion.document import ALL_ALLOWED_EXTENSIONS
-
-
-FILE_TYPE_CHOICES = [
-    (extension.lstrip("."), extension.lstrip(".").upper())
-    for extension in dict.fromkeys(ALL_ALLOWED_EXTENSIONS)
-]
 
 class UploadedDocument(models.Model):
-    FILE_TYPES_CHOICES = FILE_TYPE_CHOICES
+    FILE_TYPES_CHOICES = [
+        ("pdf", "PDF"),
+        ("doc", "DOC"),
+        ("docx", "DOCX"),
+        ("txt", "TXT")
+    ]
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="documents")
     name = models.CharField(max_length=255, verbose_name="File name")
     file = models.FileField(upload_to="uploads/documents", verbose_name="Uploaded file")
