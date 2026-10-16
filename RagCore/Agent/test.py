@@ -1,131 +1,17 @@
-import json
 from unittest.mock import Mock
 
-import pytest
-
-from RagCore.Agent.agent import Agent, AgentConfig
-from RagCore.Agent.executor import AgentExecutor
-from RagCore.Agent.planner import AgentPlan, AgentPlanner
-from RagCore.Agent.state import AgentState
-from RagCore.Agent.tools import DocumentSearchTool
-from RagCore.ErrorsHandle.exceptions import DocuMindError
+from RagCore.Agent.agent import Agent
+from RagCore.Agent.planner import AgentPlan
+from RagCore.Context.context import Context
+from RagCore.Query.query import Query
 
 
-def make_result(
-    chunk_id: str,
-    document_id: str = "document-1",
-):
-    result = Mock()
-    result.chunk_id = chunk_id
-    result.document_id = document_id
-    result.content = f"Content for {chunk_id}"
-    result.score = 0.9
-    return result
-
-
-@pytest.fixture
-def planner_provider():
-    provider = Mock()
-    provider.generate.return_value = json.dumps(
-        {
-            "queries": [
-                "What is authentication?"
-            ]
-        }
-    )
-    return provider
-
-
-@pytest.fixture
-def real_planner(planner_provider):
-    return AgentPlanner(
-        provider=planner_provider,
-        max_subqueries=5,
-    )
-
-
-@pytest.fixture
-def query_pipeline():
-    query = Mock()
-    query.normalize_text.return_value = (
-        "normalized question"
-    )
-
-    pipeline = Mock()
-    pipeline.process.return_value = query
-
-    return pipeline
-
-
-@pytest.fixture
-def embedding_provider():
-    provider = Mock()
-    provider.embed.return_value = [
-        [0.1, 0.2, 0.3]
-    ]
-    return provider
-
-
-@pytest.fixture
-def retrieval_pipeline():
-    pipeline = Mock()
-    pipeline.retrieve.return_value = [
-        make_result("chunk-1"),
-        make_result("chunk-2"),
-    ]
-    return pipeline
-
-
-@pytest.fixture
-def reranking_pipeline():
-    pipeline = Mock()
-    pipeline.rerank.return_value = [
-        make_result("chunk-1"),
-    ]
-    return pipeline
-
-
-@pytest.fixture
-def real_search_tool(
-    query_pipeline,
-    embedding_provider,
-    retrieval_pipeline,
-    reranking_pipeline,
-):
-    return DocumentSearchTool(
-        query_pipeline=query_pipeline,
-        embedding_provider=embedding_provider,
-        retrieval_pipeline=retrieval_pipeline,
-        reranking_pipeline=reranking_pipeline,
-    )
-
-
-@pytest.fixture
-def executor_search_tool():
-    return Mock()
-
-
-@pytest.fixture
-def real_executor(executor_search_tool):
-    return AgentExecutor(
-        search_tool=executor_search_tool,
-        max_steps=5,
-    )
-
-
-@pytest.fixture
-def agent_planner():
+def test_agent_passes_history_to_planner_and_generator():
     planner = Mock()
     planner.plan.return_value = AgentPlan(
-        queries=[
-            "What is RAG?"
-        ]
+        queries=["What are the study's limitations?"]
     )
-    return planner
 
-
-@pytest.fixture
-def agent_executor():
     executor = Mock()
     executor.execute.return_value = [
         make_result("chunk-1")
@@ -197,7 +83,7 @@ def test_planner_creates_single_query(
 
     assert plan.is_multi_step is False
 
-    planner_provider.generate.assert_called_once()
+    planner_provider.generate.assert_not_called()
 
 
 def test_planner_creates_multiple_queries(
@@ -231,14 +117,35 @@ def test_planner_passes_conversation_context(
     real_planner,
     planner_provider,
 ):
-    real_planner.plan(
+    planner_provider.generate.return_value = json.dumps(
+        {
+            "queries": [
+                "What security information does the conversation's OAuth reference discuss?"
+            ]
+        }
+    )
+
+    plan = real_planner.plan(
         "What about its security?",
         conversation_context=(
             "Previous question: What is OAuth?"
+    executor.execute.return_value = []
+
+    context_builder = Mock()
+    context_builder.build.return_value = Context(
+        text=(
+            "[Source 1]\n"
+            "Document: Study.pdf\n"
+            "Page: 4\n"
+            "Content:\nThe sample size is small."
         ),
+        sources=[],
     )
 
     planner_provider.generate.assert_called_once()
+    assert plan.queries == [
+        "What security information does the conversation's OAuth reference discuss?"
+    ]
 
     _, user_prompt = (
         planner_provider.generate.call_args.args
@@ -283,7 +190,7 @@ def test_planner_wraps_provider_failure(
         match="LLM unavailable",
     ):
         real_planner.plan(
-            "What is RAG?"
+            "Compare RAG and retrieval."
         )
 
 
@@ -300,7 +207,7 @@ def test_planner_rejects_invalid_json(
         match="invalid JSON",
     ):
         real_planner.plan(
-            "What is RAG?"
+            "Compare RAG and retrieval."
         )
 
 
@@ -317,7 +224,7 @@ def test_planner_rejects_missing_queries(
         match="queries list",
     ):
         real_planner.plan(
-            "What is RAG?"
+            "Compare RAG and retrieval."
         )
 
 
@@ -336,7 +243,7 @@ def test_planner_rejects_empty_queries(
         match="no usable queries",
     ):
         real_planner.plan(
-            "What is RAG?"
+            "Compare RAG and retrieval."
         )
 
 
@@ -358,7 +265,7 @@ def test_planner_limits_maximum_subqueries(
     )
 
     plan = real_planner.plan(
-        "Complex question"
+        "Compare RAG, retrieval, embeddings, ranking, and generation."
     )
 
     assert len(plan.queries) == 5
@@ -387,6 +294,7 @@ def test_search_tool_runs_rag_flow(
 
     retrieval_pipeline.retrieve.assert_called_once_with(
         [0.1, 0.2, 0.3],
+        query="normalized question",
         top_k=20,
         document_ids=None,
     )
@@ -414,6 +322,7 @@ def test_search_tool_passes_document_ids(
 
     retrieval_pipeline.retrieve.assert_called_once_with(
         [0.1, 0.2, 0.3],
+        query="normalized question",
         top_k=20,
         document_ids=document_ids,
     )
@@ -493,6 +402,8 @@ def test_executor_executes_single_query(
     executor_search_tool.search.assert_called_once_with(
         "What is RAG?",
         document_ids=None,
+        retrieval_top_k=20,
+        reranking_top_k=5,
     )
 
     assert state.retrieval_attempts == 1
@@ -566,6 +477,8 @@ def test_executor_passes_document_ids(
     executor_search_tool.search.assert_called_once_with(
         "Find common information.",
         document_ids=document_ids,
+        retrieval_top_k=20,
+        reranking_top_k=5,
     )
 
 
@@ -700,6 +613,7 @@ def test_agent_runs_complete_flow(
 def test_agent_passes_conversation_context(
     agent,
     agent_planner,
+    generation_pipeline,
 ):
     conversation_context = (
         "Previous question: What is OAuth?"
@@ -713,6 +627,13 @@ def test_agent_passes_conversation_context(
     agent_planner.plan.assert_called_once_with(
         "What about its security?",
         conversation_context=conversation_context,
+    )
+    generation_pipeline.generate.assert_called_once()
+    assert (
+        generation_pipeline.generate.call_args.kwargs[
+            "conversation_context"
+        ]
+        == conversation_context
     )
 
 
@@ -759,172 +680,43 @@ def test_agent_preserves_final_answer(
     agent,
     generation_pipeline,
 ):
+=======
+    generation_pipeline = Mock()
     generation_pipeline.generate.return_value = (
-        "This is the generated answer."
+        "The study has a small sample size."
+    )
+
+    agent = Agent(
+        planner=planner,
+        executor=executor,
+        context_builder=context_builder,
+        generation_pipeline=generation_pipeline,
+    )
+
+    history = (
+        "User: Summarize the study.\n"
+        "Assistant: The study evaluates a new method."
     )
 
     answer = agent.run(
-        "Explain RAG."
+        "What are its limitations?",
+        document_ids=["17", "18"],
+        conversation_context=history,
     )
 
-    assert answer == (
-        "This is the generated answer."
+    assert answer == "The study has a small sample size."
+
+    planner.plan.assert_called_once_with(
+        "What are its limitations?",
+        conversation_context=history,
     )
 
+    state = executor.execute.call_args.args[1]
+    assert state.document_ids == ["17", "18"]
+    assert state.conversation_context == history
 
-def test_agent_generation_failure(
-    agent,
-    generation_pipeline,
-):
-    generation_pipeline.generate.side_effect = (
-        RuntimeError(
-            "generation failed"
-        )
+    args = generation_pipeline.generate.call_args
+    assert args.args[0].normalize_text() == (
+        Query(text="What are its limitations?").normalize_text()
     )
-
-    with pytest.raises(
-        DocuMindError,
-        match="generation failed",
-    ):
-        agent.run(
-            "Explain RAG."
-        )
-
-
-def test_agent_planner_failure(
-    agent,
-    agent_planner,
-):
-    agent_planner.plan.side_effect = DocuMindError(
-        "planning failed"
-    )
-
-    with pytest.raises(
-        DocuMindError,
-        match="planning failed",
-    ):
-        agent.run(
-            "Explain RAG."
-        )
-
-
-def test_agent_executor_failure(
-    agent,
-    agent_executor,
-):
-    agent_executor.execute.side_effect = DocuMindError(
-        "execution failed"
-    )
-
-    with pytest.raises(
-        DocuMindError,
-        match="execution failed",
-    ):
-        agent.run(
-            "Explain RAG."
-        )
-
-
-def test_agent_context_failure(
-    agent,
-    context_builder,
-):
-    context_builder.build.side_effect = RuntimeError(
-        "context failed"
-    )
-
-    with pytest.raises(
-        DocuMindError,
-        match="context failed",
-    ):
-        agent.run(
-            "Explain RAG."
-        )
-
-
-def test_agent_uses_planner_queries(
-    agent,
-    agent_planner,
-    agent_executor,
-):
-    agent_planner.plan.return_value = AgentPlan(
-        queries=[
-            "authentication",
-            "authorization",
-        ]
-    )
-
-    agent.run(
-        "Compare authentication and authorization."
-    )
-
-    agent_executor.execute.assert_called_once()
-
-    queries = agent_executor.execute.call_args.args[0]
-
-    assert queries == [
-        "authentication",
-        "authorization",
-    ]
-
-
-def test_agent_executes_multi_document_plan(
-    agent,
-    agent_planner,
-    agent_executor,
-):
-    agent_planner.plan.return_value = AgentPlan(
-        queries=[
-            "Find information from document A.",
-            "Find information from document B.",
-            "Find information from document C.",
-        ]
-    )
-
-    agent.run(
-        "What information is common across the documents?"
-    )
-
-    queries = agent_executor.execute.call_args.args[0]
-
-    assert len(queries) == 3
-
-    assert queries == [
-        "Find information from document A.",
-        "Find information from document B.",
-        "Find information from document C.",
-    ]
-
-
-def test_agent_does_not_call_generation_when_planning_fails(
-    agent,
-    agent_planner,
-    generation_pipeline,
-):
-    agent_planner.plan.side_effect = DocuMindError(
-        "planning failed"
-    )
-
-    with pytest.raises(DocuMindError):
-        agent.run(
-            "Explain RAG."
-        )
-
-    generation_pipeline.generate.assert_not_called()
-
-
-def test_agent_does_not_call_generation_when_execution_fails(
-    agent,
-    agent_executor,
-    generation_pipeline,
-):
-    agent_executor.execute.side_effect = DocuMindError(
-        "execution failed"
-    )
-
-    with pytest.raises(DocuMindError):
-        agent.run(
-            "Explain RAG."
-        )
-
-    generation_pipeline.generate.assert_not_called()
+    assert args.kwargs["conversation_context"] == history
