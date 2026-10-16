@@ -13,7 +13,7 @@ const DocumentsView = ({ onUploadClick, onOpenInChat }) => {
 
   const handleSelect = (documentId) => {
     dispatch({ type: "SET_SELECTED_DOCUMENT", payload: documentId });
-    onOpenInChat?.(documentId);
+    onOpenInChat?.();
   };
 
   const handleDelete = async (event, documentId) => {
