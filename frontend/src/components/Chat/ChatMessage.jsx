@@ -2,6 +2,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Bot, UserRound, RotateCw, AlertCircle } from "lucide-react";
 import Badge, { getConfidenceLevel } from "../Common/Badge";
+import BlinkingAvatar from "./BlinkingAvatar";
+import ThinkingText from "./ThinkingText";
 
 const pageSummary = (sources = []) => {
   const pages = [
@@ -83,11 +85,15 @@ const ChatMessage = ({ message, onRetry }) => {
 
   return (
     <div className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
-      {!isUser && (
-        <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-600/20 text-violet-200">
-          <Bot className="h-5 w-5" />
-        </div>
-      )}
+      {!isUser &&
+        (isPending ? (
+          /* Animated blinking face while the answer is generating */
+          <BlinkingAvatar />
+        ) : (
+          <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-600/20 text-violet-200">
+            <Bot className="h-5 w-5" />
+          </div>
+        ))}
 
       <div
         className={`flex min-w-0 max-w-[88%] flex-col gap-2 sm:max-w-[75%] ${
@@ -106,16 +112,8 @@ const ChatMessage = ({ message, onRetry }) => {
               {message.content}
             </p>
           ) : isPending ? (
-            <div
-              className="flex items-center gap-3"
-              role="status"
-              aria-live="polite"
-            >
-              <span className="inline-flex items-center gap-1">
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.25s]" />              </span>
-            </div>
+            /* "Thinking.." typing animation — replaces the bouncing dots */
+            <ThinkingText />
           ) : isFailed ? (
             <div className="flex flex-col items-start gap-3">
               <div className="flex items-center gap-2 text-sm text-red-300">
