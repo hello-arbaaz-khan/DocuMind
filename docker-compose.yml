@@ -79,12 +79,11 @@ services:
       dockerfile: drive_service/Dockerfile
     volumes:
       - ./drive_service:/app
-      - ./apps:/app/apps
-      - ./Workflow:/app/Workflow
-      - ./RagCore:/app/RagCore
-      - ./core:/app/core
-      - ./manage.py:/app/manage.py
-      - media-data:/app/media
+      - ./apps:/workspace/apps
+      - ./Workflow:/workspace/Workflow
+      - ./RagCore:/workspace/RagCore
+      - ./core:/workspace/core
+      - media-data:/workspace/media
       - ~/.cache/huggingface:/root/.cache/huggingface
     ports:
       - "8001:8001"
@@ -92,6 +91,7 @@ services:
       - .env.docker
       - ./drive_service/.env.docker
     environment:
+      PYTHONPATH: /workspace
       DJANGO_SETTINGS_MODULE: core.settings
       DB_HOST: db
       DB_PORT: "5432"

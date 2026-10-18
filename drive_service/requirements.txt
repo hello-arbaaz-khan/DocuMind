@@ -10,6 +10,7 @@ google-auth-httplib2
 
 sqlalchemy
 psycopg2-binary
+psycopg[binary]
 pyjwt
 itsdangerous
 cryptography
