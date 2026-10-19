@@ -64,21 +64,48 @@ class ChatQueryIntegrationTests(TestCase):
 
         return document
 
+
     @classmethod
     def _get_real_fixtures(cls):
-        fixtures_root = Path(__file__).resolve().parents[2] / "RagCore" / "Tests" / "Fixtures"
-        candidates = sorted((fixtures_root / "Pdf_samples").glob("*.pdf")) if (fixtures_root / "Pdf_samples").exists() else []
-        candidates += sorted((fixtures_root / "Docx_samples").glob("*.docx")) if (fixtures_root / "Docx_samples").exists() else []
+        fixtures_root = (
+            Path(__file__).resolve().parents[2]
+            / "RagCore"
+            / "Fixtures"
+        )
+
+        pdf_dir = fixtures_root / "Pdf_samples"
+        docx_dir = fixtures_root / "Docx_samples"
+
+        candidates = []
+
+        if pdf_dir.is_dir():
+            candidates.extend(sorted(pdf_dir.glob("*.pdf")))
+
+        if docx_dir.is_dir():
+            candidates.extend(sorted(docx_dir.glob("*.docx")))
+
         if len(candidates) < 2:
-            raise AssertionError(f"At least two real PDF/DOCX fixtures are required under {fixtures_root}")
+            raise AssertionError(
+                "At least two real PDF/DOCX fixtures are required. "
+                f"Found {len(candidates)} under {fixtures_root}. "
+                f"PDF directory exists: {pdf_dir.is_dir()}; "
+                f"DOCX directory exists: {docx_dir.is_dir()}."
+            )
+
         return candidates
+
+
 
     @staticmethod
     def _content_type(extension):
         return {
             ".pdf": "application/pdf",
-            ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        }.get(extension, "application/octet-stream")
+            ".docx": (
+                "application/vnd.openxmlformats-officedocument."
+                "wordprocessingml.document"
+            ),
+        }.get(extension.lower(), "application/octet-stream")
+
 
     @staticmethod
     def _create_conversation(user, documents):

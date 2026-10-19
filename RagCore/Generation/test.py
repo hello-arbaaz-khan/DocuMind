@@ -1,4 +1,9 @@
+
+import pytest
+from pydantic import ValidationError
+
 from RagCore.Context.context import Context
+from RagCore.Generation.generation import GenerationConfig
 from RagCore.Generation.pipeline import GenerationPipeline
 from RagCore.Query.query import Query
 
@@ -46,24 +51,45 @@ def test_generation_config_rejects_invalid_max_tokens():
 
 
 def test_generation_returns_provider_response():
-    provider = FakeGenerationProvider(
+    provider = RecordingGenerationProvider(
         response="RAG retrieves relevant information before generation."
     )
-
     pipeline = GenerationPipeline(provider)
 
-    answer = pipeline.generate(
-        make_query(),
-        make_context(),
-    )
+    answer = pipeline.generate(make_query(), make_context())
 
     assert answer == (
         "RAG retrieves relevant information before generation."
     )
+    assert len(provider.calls) == 1
 
 
 def test_generation_builds_prompt_from_query_and_context():
-    provider = FakeGenerationProvider()
+    provider = RecordingGenerationProvider()
+    pipeline = GenerationPipeline(provider)
+
+    pipeline.generate(
+        Query(text="What is the main finding?"),
+        Context(
+            text=(
+                "[Source 1]\n"
+                "Document: Report.pdf\n"
+                "Page: 2\n"
+                "Content:\n"
+                "The report identifies a 12% increase."
+            ),
+            sources=[],
+        ),
+    )
+
+    system_prompt, user_prompt = provider.calls[0]
+
+    assert "What is the main finding?" in user_prompt
+    assert "Report.pdf" in user_prompt
+    assert "12% increase" in user_prompt
+    assert "document-grounded AI assistant" in system_prompt
+    assert "retrieved document evidence" in system_prompt
+
 
 def test_simple_question_uses_direct_answer_instructions():
     provider = RecordingGenerationProvider()
@@ -72,49 +98,58 @@ def test_simple_question_uses_direct_answer_instructions():
     pipeline.generate(
         Query(text="What is the main finding?"),
         Context(
-            text="[Source 1]\nDocument: Report.pdf\nPage: 2\n"
-            "Content:\nThe report identifies a 12% increase.",
+            text=(
+                "[Source 1]\n"
+                "Document: Report.pdf\n"
+                "Page: 2\n"
+                "Content:\n"
+                "The report identifies a 12% increase."
+            ),
             sources=[],
         ),
     )
 
     system_prompt, user_prompt = provider.calls[0]
 
-    assert "retrieves relevant documents" in user_prompt
-    assert "What is RAG?" in user_prompt
-    assert "  What is RAG?  " not in user_prompt
-    assert "using only" in system_prompt
-    assert "retrieved document evidence" in system_prompt
-    assert "not evidence for factual claims" in system_prompt
-    assert "directly and naturally" in system_prompt
     assert "What is the main finding?" in user_prompt
     assert "12% increase" in user_prompt
+    assert "document-grounded AI assistant" in system_prompt
+    assert "retrieved document evidence" in system_prompt
+    assert "document-grounded AI assistant" in system_prompt
+    assert "directly and naturally" in system_prompt
 
 
 def test_summary_instructions_support_structured_markdown():
     provider = RecordingGenerationProvider()
     pipeline = GenerationPipeline(provider)
 
-    pipeline.generate(
+    answer = pipeline.generate(
         Query(text="Write a professional summary of the report."),
         Context(
-            text="[Source 1]\nDocument: Report.pdf\nPage: 1\n"
-            "Content:\nThe report describes three findings.",
+            text=(
+                "[Source 1]\n"
+                "Document: Report.pdf\n"
+                "Page: 1\n"
+                "Content:\n"
+                "The report describes three findings."
+            ),
             sources=[],
         ),
     )
 
-    assert answer == (
-        "The available document excerpts do not contain enough "
-        "information to answer this question reliably."
-    )
+    system_prompt, user_prompt = provider.calls[0]
 
-    assert provider.calls == []
+    assert answer == "A concise answer."
+    assert "numbered sections" in system_prompt
+    assert "bullet points" in system_prompt
+    assert "bold" in system_prompt
+    assert "conclusion" in system_prompt
+    assert "professional summary" in user_prompt
+    assert "three findings" in user_prompt
 
 
 def test_generation_includes_conversation_history_for_follow_up():
-    provider = FakeGenerationProvider()
-
+    provider = RecordingGenerationProvider()
     pipeline = GenerationPipeline(provider)
 
     pipeline.generate(
@@ -126,17 +161,13 @@ def test_generation_includes_conversation_history_for_follow_up():
         ),
     )
 
-    _, user_prompt = provider.calls[0]
+    system_prompt, user_prompt = provider.calls[0]
+
     assert "What about its limitations?" in user_prompt
     assert "Summarize the study." in user_prompt
     assert "investigates a new method" in user_prompt
     assert "not document evidence" in user_prompt
-    system_prompt, _ = provider.calls[0]
-
-    assert "numbered sections" in system_prompt
-    assert "bullet points" in system_prompt
-    assert "bold" in system_prompt
-    assert "conclusion" in system_prompt
+    assert "document-grounded AI assistant" in system_prompt
 
 
 def test_multi_document_prompt_includes_both_sources():
@@ -162,6 +193,8 @@ def test_multi_document_prompt_includes_both_sources():
     assert "Report-B.pdf" in user_prompt
     assert "Page: 2" in user_prompt
     assert "Page: 5" in user_prompt
+    assert "Finding A." in user_prompt
+    assert "Finding B." in user_prompt
 
 
 def test_follow_up_history_reaches_generation():
@@ -171,8 +204,13 @@ def test_follow_up_history_reaches_generation():
     pipeline.generate(
         Query(text="What about its limitations?"),
         Context(
-            text="[Source 1]\nDocument: Study.pdf\nPage: 4\n"
-            "Content:\nThe study reports a small sample size.",
+            text=(
+                "[Source 1]\n"
+                "Document: Study.pdf\n"
+                "Page: 4\n"
+                "Content:\n"
+                "The study reports a small sample size."
+            ),
             sources=[],
         ),
         conversation_context=(

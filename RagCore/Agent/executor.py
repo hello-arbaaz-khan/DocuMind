@@ -19,6 +19,7 @@ class AgentExecutor:
         self.retrieval_top_k = retrieval_top_k
         self.reranking_top_k = reranking_top_k
 
+    
     def execute(
         self,
         queries: list[str],
@@ -28,30 +29,35 @@ class AgentExecutor:
             raise AgentError(
                 "Executor received no queries."
             )
-
+    
         if len(queries) > self.max_steps:
             raise AgentError(
                 "Agent exceeded maximum execution steps."
             )
-
-        all_candidates: list[RetrievalResult] = []
-
+    
+        all_results: list[RetrievalResult] = []
+        seen_chunk_ids: set[str] = set()
+    
         for query in queries:
-            results = self.search_tool.search(
+            state.retrieval_attempts += 1
+    
+            query_results = self.search_tool.search(
                 query,
                 document_ids=state.document_ids,
                 retrieval_top_k=self.retrieval_top_k,
                 reranking_top_k=self.reranking_top_k,
             )
-
-            state.retrieval_attempts += 1
+    
             state.completed_queries.append(query)
-
-            all_candidates.extend(results)
-
-        state.candidates_count = len(all_candidates)
-
-        return self._deduplicate(all_candidates)
+    
+            for result in query_results:
+                if result.chunk_id not in seen_chunk_ids:
+                    seen_chunk_ids.add(result.chunk_id)
+                    all_results.append(result)
+    
+        state.candidates_count = len(all_results)
+    
+        return all_results
 
     @staticmethod
     def _normalize_content(
