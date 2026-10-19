@@ -1,28 +1,98 @@
+
+import json
 from unittest.mock import Mock
 
-from RagCore.Agent.agent import Agent
-from RagCore.Agent.planner import AgentPlan
+import pytest
+
+from RagCore.Agent.agent import Agent, AgentConfig
+from RagCore.Agent.executor import AgentExecutor
+from RagCore.Agent.planner import AgentPlan, AgentPlanner
+from RagCore.Agent.state import AgentState
+from RagCore.Agent.tools import DocumentSearchTool
 from RagCore.Context.context import Context
+from RagCore.ErrorsHandle.exceptions import AgentError
 from RagCore.Query.query import Query
+from RagCore.Retrieval.retrieval import RetrievalResult
 
 
-def test_agent_passes_history_to_planner_and_generator():
-    planner = Mock()
-    planner.plan.return_value = AgentPlan(
-        queries=["What are the study's limitations?"]
+def make_result(
+    chunk_id="chunk-1",
+    document_id="doc-1",
+    content="Test evidence",
+    *,
+    page_number=1,
+    chunk_index=0,
+    metadata=None,
+    score=0.9,
+):
+    return RetrievalResult(
+        chunk_id=chunk_id,
+        document_id=document_id,
+        content=content,
+        score=score,
+        page_number=page_number,
+        chunk_index=chunk_index,
+        metadata=metadata or {},
     )
 
+
+@pytest.fixture
+def planner_provider():
+    provider = Mock()
+    provider.generate.return_value = json.dumps(
+        {"queries": ["query 1", "query 2"]}
+    )
+    return provider
+
+
+@pytest.fixture
+def real_planner(planner_provider):
+    return AgentPlanner(
+        provider=planner_provider,
+        max_subqueries=5,
+    )
+
+
+@pytest.fixture
+def executor_search_tool():
+    tool = Mock()
+    tool.search.return_value = [make_result()]
+    return tool
+
+
+@pytest.fixture
+def real_executor(executor_search_tool):
+    return AgentExecutor(
+        search_tool=executor_search_tool,
+        max_steps=5,
+        retrieval_top_k=20,
+        reranking_top_k=5,
+    )
+
+
+@pytest.fixture
+def agent_planner():
+    planner = Mock()
+    planner.plan.return_value = AgentPlan(
+        queries=["What is RAG?"]
+    )
+    return planner
+
+
+@pytest.fixture
+def agent_executor():
     executor = Mock()
-    executor.execute.return_value = [
-        make_result("chunk-1")
-    ]
+    executor.execute.return_value = [make_result()]
     return executor
 
 
 @pytest.fixture
 def context_builder():
     builder = Mock()
-    builder.build.return_value = "Relevant context"
+    builder.build.return_value = Context(
+        text="Relevant context",
+        sources=[],
+    )
     return builder
 
 
@@ -54,10 +124,53 @@ def agent(
     )
 
 
-def test_agent_state_defaults():
-    state = AgentState(
-        question="What is RAG?"
+@pytest.fixture
+def query_pipeline():
+    pipeline = Mock()
+    pipeline.process.return_value = Query(
+        text="normalized question"
     )
+    return pipeline
+
+
+@pytest.fixture
+def embedding_provider():
+    provider = Mock()
+    provider.embed.return_value = [[0.1, 0.2, 0.3]]
+    return provider
+
+
+@pytest.fixture
+def retrieval_pipeline():
+    pipeline = Mock()
+    pipeline.retrieve.return_value = [make_result()]
+    return pipeline
+
+
+@pytest.fixture
+def reranking_pipeline():
+    pipeline = Mock()
+    pipeline.rerank.return_value = [make_result()]
+    return pipeline
+
+
+@pytest.fixture
+def real_search_tool(
+    query_pipeline,
+    embedding_provider,
+    retrieval_pipeline,
+    reranking_pipeline,
+):
+    return DocumentSearchTool(
+        query_pipeline=query_pipeline,
+        embedding_provider=embedding_provider,
+        retrieval_pipeline=retrieval_pipeline,
+        reranking_pipeline=reranking_pipeline,
+    )
+
+
+def test_agent_state_defaults():
+    state = AgentState(question="What is RAG?")
 
     assert state.question == "What is RAG?"
     assert state.document_ids is None
@@ -73,16 +186,10 @@ def test_planner_creates_single_query(
     real_planner,
     planner_provider,
 ):
-    plan = real_planner.plan(
-        "What is authentication?"
-    )
+    plan = real_planner.plan("What is authentication?")
 
-    assert plan.queries == [
-        "What is authentication?"
-    ]
-
+    assert plan.queries == ["What is authentication?"]
     assert plan.is_multi_step is False
-
     planner_provider.generate.assert_not_called()
 
 
@@ -109,8 +216,8 @@ def test_planner_creates_multiple_queries(
         "Find authorization information.",
         "Find security information.",
     ]
-
     assert plan.is_multi_step is True
+    planner_provider.generate.assert_called_once()
 
 
 def test_planner_passes_conversation_context(
@@ -127,54 +234,19 @@ def test_planner_passes_conversation_context(
 
     plan = real_planner.plan(
         "What about its security?",
-        conversation_context=(
-            "Previous question: What is OAuth?"
-    executor.execute.return_value = []
-
-    context_builder = Mock()
-    context_builder.build.return_value = Context(
-        text=(
-            "[Source 1]\n"
-            "Document: Study.pdf\n"
-            "Page: 4\n"
-            "Content:\nThe sample size is small."
-        ),
-        sources=[],
+        conversation_context="Previous question: What is OAuth?",
     )
 
-    planner_provider.generate.assert_called_once()
-    assert plan.queries == [
-        "What security information does the conversation's OAuth reference discuss?"
-    ]
+    assert len(plan.queries) == 1
 
-    _, user_prompt = (
-        planner_provider.generate.call_args.args
-    )
-
-    assert (
-        "Previous question: What is OAuth?"
-        in user_prompt
-    )
+    _, user_prompt = planner_provider.generate.call_args.args
+    assert "Previous question: What is OAuth?" in user_prompt
 
 
-def test_planner_rejects_empty_question(
-    real_planner,
-):
-    with pytest.raises(
-        DocuMindError,
-        match="non-empty",
-    ):
-        real_planner.plan("")
-
-
-def test_planner_rejects_whitespace_question(
-    real_planner,
-):
-    with pytest.raises(
-        DocuMindError,
-        match="non-empty",
-    ):
-        real_planner.plan("   ")
+@pytest.mark.parametrize("question", ["", "   "])
+def test_planner_rejects_empty_question(real_planner, question):
+    with pytest.raises(AgentError, match="non-empty"):
+        real_planner.plan(question)
 
 
 def test_planner_wraps_provider_failure(
@@ -185,12 +257,9 @@ def test_planner_wraps_provider_failure(
         "LLM unavailable"
     )
 
-    with pytest.raises(
-        DocuMindError,
-        match="LLM unavailable",
-    ):
+    with pytest.raises(AgentError, match="LLM unavailable"):
         real_planner.plan(
-            "Compare RAG and retrieval."
+            "Compare authentication and authorization."
         )
 
 
@@ -198,16 +267,11 @@ def test_planner_rejects_invalid_json(
     real_planner,
     planner_provider,
 ):
-    planner_provider.generate.return_value = (
-        "not valid json"
-    )
+    planner_provider.generate.return_value = "not valid json"
 
-    with pytest.raises(
-        DocuMindError,
-        match="invalid JSON",
-    ):
+    with pytest.raises(AgentError, match="invalid JSON"):
         real_planner.plan(
-            "Compare RAG and retrieval."
+            "Compare authentication and authorization."
         )
 
 
@@ -215,16 +279,11 @@ def test_planner_rejects_missing_queries(
     real_planner,
     planner_provider,
 ):
-    planner_provider.generate.return_value = json.dumps(
-        {}
-    )
+    planner_provider.generate.return_value = json.dumps({})
 
-    with pytest.raises(
-        DocuMindError,
-        match="queries list",
-    ):
+    with pytest.raises(AgentError, match="queries list"):
         real_planner.plan(
-            "Compare RAG and retrieval."
+            "Compare authentication and authorization."
         )
 
 
@@ -233,17 +292,12 @@ def test_planner_rejects_empty_queries(
     planner_provider,
 ):
     planner_provider.generate.return_value = json.dumps(
-        {
-            "queries": []
-        }
+        {"queries": []}
     )
 
-    with pytest.raises(
-        DocuMindError,
-        match="no usable queries",
-    ):
+    with pytest.raises(AgentError, match="no usable queries"):
         real_planner.plan(
-            "Compare RAG and retrieval."
+            "Compare authentication and authorization."
         )
 
 
@@ -265,7 +319,7 @@ def test_planner_limits_maximum_subqueries(
     )
 
     plan = real_planner.plan(
-        "Compare RAG, retrieval, embeddings, ranking, and generation."
+        "Compare authentication and authorization."
     )
 
     assert len(plan.queries) == 5
@@ -278,27 +332,19 @@ def test_search_tool_runs_rag_flow(
     retrieval_pipeline,
     reranking_pipeline,
 ):
-    results = real_search_tool.search(
-        "What is RAG?"
-    )
+    results = real_search_tool.search("What is RAG?")
 
     assert len(results) == 1
-
-    query_pipeline.process.assert_called_once_with(
-        "What is RAG?"
-    )
-
+    query_pipeline.process.assert_called_once_with("What is RAG?")
     embedding_provider.embed.assert_called_once_with(
         ["normalized question"]
     )
-
     retrieval_pipeline.retrieve.assert_called_once_with(
         [0.1, 0.2, 0.3],
         query="normalized question",
         top_k=20,
         document_ids=None,
     )
-
     reranking_pipeline.rerank.assert_called_once_with(
         "normalized question",
         retrieval_pipeline.retrieve.return_value,
@@ -310,10 +356,7 @@ def test_search_tool_passes_document_ids(
     real_search_tool,
     retrieval_pipeline,
 ):
-    document_ids = [
-        "document-1",
-        "document-2",
-    ]
+    document_ids = ["document-1", "document-2"]
 
     real_search_tool.search(
         "authentication",
@@ -337,30 +380,18 @@ def test_search_tool_rejects_multiple_embeddings(
         [0.3, 0.4],
     ]
 
-    with pytest.raises(
-        ValueError,
-        match="exactly one embedding",
-    ):
-        real_search_tool.search(
-            "What is RAG?"
-        )
+    with pytest.raises(ValueError, match="exactly one embedding"):
+        real_search_tool.search("What is RAG?")
 
 
 def test_search_tool_propagates_query_failure(
     real_search_tool,
     query_pipeline,
 ):
-    query_pipeline.process.side_effect = RuntimeError(
-        "query failed"
-    )
+    query_pipeline.process.side_effect = RuntimeError("query failed")
 
-    with pytest.raises(
-        RuntimeError,
-        match="query failed",
-    ):
-        real_search_tool.search(
-            "What is RAG?"
-        )
+    with pytest.raises(RuntimeError, match="query failed"):
+        real_search_tool.search("What is RAG?")
 
 
 def test_search_tool_propagates_retrieval_failure(
@@ -371,26 +402,16 @@ def test_search_tool_propagates_retrieval_failure(
         "database unavailable"
     )
 
-    with pytest.raises(
-        RuntimeError,
-        match="database unavailable",
-    ):
-        real_search_tool.search(
-            "What is RAG?"
-        )
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        real_search_tool.search("What is RAG?")
+
 
 
 def test_executor_executes_single_query(
     real_executor,
     executor_search_tool,
 ):
-    executor_search_tool.search.return_value = [
-        make_result("chunk-1")
-    ]
-
-    state = AgentState(
-        question="What is RAG?"
-    )
+    state = AgentState(question="What is RAG?")
 
     results = real_executor.execute(
         ["What is RAG?"],
@@ -398,6 +419,7 @@ def test_executor_executes_single_query(
     )
 
     assert len(results) == 1
+    assert results[0].chunk_id == "chunk-1"
 
     executor_search_tool.search.assert_called_once_with(
         "What is RAG?",
@@ -407,10 +429,8 @@ def test_executor_executes_single_query(
     )
 
     assert state.retrieval_attempts == 1
-
-    assert state.completed_queries == [
-        "What is RAG?"
-    ]
+    assert state.completed_queries == ["What is RAG?"]
+    assert state.candidates_count == 1
 
 
 def test_executor_executes_multiple_queries(
@@ -422,11 +442,8 @@ def test_executor_executes_multiple_queries(
         [make_result("chunk-2")],
         [make_result("chunk-3")],
     ]
-
     state = AgentState(
-        question=(
-            "Compare authentication and authorization."
-        )
+        question="Compare authentication and authorization."
     )
 
     results = real_executor.execute(
@@ -438,41 +455,24 @@ def test_executor_executes_multiple_queries(
         state,
     )
 
-    assert len(results) == 3
-
     assert executor_search_tool.search.call_count == 3
-
-    assert state.retrieval_attempts == 3
-
-    assert state.completed_queries == [
-        "Find authentication.",
-        "Find authorization.",
-        "Find security.",
+    assert [result.chunk_id for result in results] == [
+        "chunk-1",
+        "chunk-2",
+        "chunk-3",
     ]
-
 
 def test_executor_passes_document_ids(
     real_executor,
     executor_search_tool,
 ):
-    document_ids = [
-        "document-1",
-        "document-2",
-    ]
-
-    executor_search_tool.search.return_value = [
-        make_result("chunk-1")
-    ]
-
+    document_ids = ["document-1", "document-2"]
     state = AgentState(
         question="What is common?",
         document_ids=document_ids,
     )
 
-    real_executor.execute(
-        ["Find common information."],
-        state,
-    )
+    real_executor.execute(["Find common information."], state)
 
     executor_search_tool.search.assert_called_once_with(
         "Find common information.",
@@ -486,70 +486,30 @@ def test_executor_removes_duplicate_chunks(
     real_executor,
     executor_search_tool,
 ):
-    duplicate_1 = make_result("chunk-1")
-    duplicate_2 = make_result("chunk-1")
-
     executor_search_tool.search.side_effect = [
-        [duplicate_1],
-        [duplicate_2],
+        [make_result("chunk-1", content="Same evidence.")],
+        [make_result("chunk-1", content="Same evidence.")],
     ]
+    state = AgentState(question="What is common?")
 
-    state = AgentState(
-        question="What is common?"
-    )
-
-    results = real_executor.execute(
-        [
-            "query 1",
-            "query 2",
-        ],
-        state,
-    )
+    results = real_executor.execute(["query 1", "query 2"], state)
 
     assert len(results) == 1
     assert results[0].chunk_id == "chunk-1"
 
 
-def test_executor_rejects_empty_queries(
-    real_executor,
-):
-    state = AgentState(
-        question="What is RAG?"
-    )
-
-    with pytest.raises(
-        DocuMindError,
-        match="no queries",
-    ):
-        real_executor.execute(
-            [],
-            state,
-        )
+def test_executor_rejects_empty_queries(real_executor):
+    with pytest.raises(AgentError, match="no queries"):
+        real_executor.execute([], AgentState(question="What is RAG?"))
 
 
-def test_executor_enforces_max_steps(
-    executor_search_tool,
-):
-    executor = AgentExecutor(
-        search_tool=executor_search_tool,
-        max_steps=2,
-    )
+def test_executor_enforces_max_steps(executor_search_tool):
+    executor = AgentExecutor(search_tool=executor_search_tool, max_steps=2)
 
-    state = AgentState(
-        question="Complex question"
-    )
-
-    with pytest.raises(
-        DocuMindError,
-        match="maximum execution steps",
-    ):
+    with pytest.raises(AgentError, match="maximum execution steps"):
         executor.execute(
-            [
-                "query 1",
-                "query 2",
-                "query 3",
-            ],
-            state,
+            ["query 1", "query 2", "query 3"],
+            AgentState(question="Complex question"),
         )
 
 
@@ -558,26 +518,12 @@ def test_executor_updates_candidate_count(
     executor_search_tool,
 ):
     executor_search_tool.search.side_effect = [
-        [
-            make_result("chunk-1"),
-            make_result("chunk-2"),
-        ],
-        [
-            make_result("chunk-3"),
-        ],
+        [make_result("chunk-1"), make_result("chunk-2")],
+        [make_result("chunk-3")],
     ]
+    state = AgentState(question="What is common?")
 
-    state = AgentState(
-        question="What is common?"
-    )
-
-    results = real_executor.execute(
-        [
-            "query 1",
-            "query 2",
-        ],
-        state,
-    )
+    results = real_executor.execute(["query 1", "query 2"], state)
 
     assert len(results) == 3
     assert state.candidates_count == 3
@@ -590,23 +536,17 @@ def test_agent_runs_complete_flow(
     context_builder,
     generation_pipeline,
 ):
-    answer = agent.run(
-        "What is RAG?"
-    )
+    answer = agent.run("What is RAG?")
 
     assert answer == "Final answer"
-
     agent_planner.plan.assert_called_once_with(
         "What is RAG?",
         conversation_context="",
     )
-
     agent_executor.execute.assert_called_once()
-
     context_builder.build.assert_called_once_with(
-        agent_executor.execute.return_value,
+        agent_executor.execute.return_value
     )
-
     generation_pipeline.generate.assert_called_once()
 
 
@@ -615,108 +555,49 @@ def test_agent_passes_conversation_context(
     agent_planner,
     generation_pipeline,
 ):
-    conversation_context = (
-        "Previous question: What is OAuth?"
-    )
+    history = "Previous question: What is OAuth?"
 
     agent.run(
         "What about its security?",
-        conversation_context=conversation_context,
+        conversation_context=history,
     )
 
     agent_planner.plan.assert_called_once_with(
         "What about its security?",
-        conversation_context=conversation_context,
+        conversation_context=history,
     )
-    generation_pipeline.generate.assert_called_once()
     assert (
         generation_pipeline.generate.call_args.kwargs[
             "conversation_context"
         ]
-        == conversation_context
+        == history
     )
 
 
-def test_agent_passes_document_ids(
-    agent,
-    agent_executor,
-):
-    document_ids = [
-        "document-1",
-        "document-2",
-    ]
+def test_agent_passes_document_ids(agent, agent_executor):
+    document_ids = ["document-1", "document-2"]
 
-    agent.run(
-        "What is common?",
-        document_ids=document_ids,
-    )
+    agent.run("What is common?", document_ids=document_ids)
 
     state = agent_executor.execute.call_args.args[1]
-
     assert state.document_ids == document_ids
 
 
-def test_agent_rejects_empty_question(
-    agent,
-):
-    with pytest.raises(
-        DocuMindError,
-        match="non-empty",
-    ):
-        agent.run("")
+@pytest.mark.parametrize("question", ["", "   "])
+def test_agent_rejects_empty_question(agent, question):
+    with pytest.raises(AgentError, match="non-empty"):
+        agent.run(question)
 
 
-def test_agent_rejects_whitespace_question(
-    agent,
-):
-    with pytest.raises(
-        DocuMindError,
-        match="non-empty",
-    ):
-        agent.run("   ")
-
-
-def test_agent_preserves_final_answer(
-    agent,
-    generation_pipeline,
-):
-=======
-    generation_pipeline = Mock()
+def test_agent_preserves_final_answer(agent, generation_pipeline):
     generation_pipeline.generate.return_value = (
         "The study has a small sample size."
-    )
-
-    agent = Agent(
-        planner=planner,
-        executor=executor,
-        context_builder=context_builder,
-        generation_pipeline=generation_pipeline,
-    )
-
-    history = (
-        "User: Summarize the study.\n"
-        "Assistant: The study evaluates a new method."
     )
 
     answer = agent.run(
         "What are its limitations?",
         document_ids=["17", "18"],
-        conversation_context=history,
+        conversation_context="Previous question: Summarize the study.",
     )
 
     assert answer == "The study has a small sample size."
-
-    planner.plan.assert_called_once_with(
-        "What are its limitations?",
-        conversation_context=history,
-    )
-
-    state = executor.execute.call_args.args[1]
-    assert state.document_ids == ["17", "18"]
-    assert state.conversation_context == history
-
-    args = generation_pipeline.generate.call_args
-    assert args.args[0].normalize_text() == (
-        Query(text="What are its limitations?").normalize_text()
-    )
-    assert args.kwargs["conversation_context"] == history

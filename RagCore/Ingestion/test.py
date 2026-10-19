@@ -1,11 +1,20 @@
 import pytest
+import pymupdf4llm
 from unittest.mock import MagicMock, patch
+from pathlib import Path
+
+from RagCore.Chunking.pipeline import ChunkingPipeline
+from RagCore.Ingestion.pipeline import IngestionPipeline
+
+from pathlib import Path
 
 from RagCore.Ingestion.document import DocumentPage
 from RagCore.ErrorsHandle.exceptions import EmptyExtractionError, IngestionError
 from RagCore.Ingestion.pipeline import IngestionPipeline
 from RagCore.Ingestion.vision_extraction import VisionExtractionEngine
 
+SAMPLES_DIR = Path(__file__).resolve().parent.parent / "Fixtures" / "Pdf_samples"
+DOCX_SAMPLES_DIR = Path(__file__).resolve().parent.parent / "Fixtures" / "Docx_samples"
 
 @patch("RagCore.Ingestion.document_extraction.pymupdf4llm.to_markdown")
 @patch("os.path.exists")
@@ -160,3 +169,134 @@ def test_edge_case_vision_fallback_also_returns_blank(mock_exists, mock_doc_extr
 
     mock_doc_extract.assert_called_once_with("uploads/blank_photo.pdf")
     mock_vision_extract.assert_called_once_with("uploads/blank_photo.pdf")
+
+
+def test_real_pdf_metadata():
+    result = pymupdf4llm.to_markdown(
+        "RagCore/Fixtures/Pdf_samples/sample_with_blank_page.pdf",
+        page_chunks=True,
+    )
+
+    print(result)
+
+    for page in result:
+        print(page["metadata"])
+
+
+
+
+def get_sample_files(directory: Path, extensions: tuple[str, ...]) -> list[Path]:
+    return [
+        path
+        for path in directory.iterdir()
+        if path.is_file() and path.suffix.lower() in extensions
+    ]
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    get_sample_files(SAMPLES_DIR, (".pdf",)),
+    ids=lambda path: path.name,
+)
+def test_real_pdf_ingestion_to_chunking(file_path):
+    ingestion = IngestionPipeline()
+    chunking = ChunkingPipeline()
+
+    document = ingestion.run(file_path=str(file_path),document_id=file_path.stem)
+    chunks = chunking.process(document)
+
+    assert chunks
+    assert all(chunk.content.strip() for chunk in chunks)
+    assert all(chunk.document_id == document.document_id for chunk in chunks)
+    assert [chunk.chunk_index for chunk in chunks] == list(range(len(chunks)))
+    assert all(chunk.page_number is not None for chunk in chunks)
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    get_sample_files(DOCX_SAMPLES_DIR, (".docx",)),
+    ids=lambda path: path.name,
+)
+def test_real_docx_ingestion_to_chunking(file_path):
+    ingestion = IngestionPipeline()
+    chunking = ChunkingPipeline()
+
+    document = ingestion.run(file_path=str(file_path),document_id=file_path.stem)
+    chunks = chunking.process(document)
+
+    assert chunks
+    assert all(chunk.content.strip() for chunk in chunks)
+    assert all(chunk.document_id == document.document_id for chunk in chunks)
+    assert [chunk.chunk_index for chunk in chunks] == list(range(len(chunks)))
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    get_sample_files(SAMPLES_DIR, (".pdf",))
+    + get_sample_files(DOCX_SAMPLES_DIR, (".docx",)),
+    ids=lambda path: path.name,
+)
+def test_real_document_chunking_is_deterministic(file_path):
+    ingestion = IngestionPipeline()
+    chunking = ChunkingPipeline()
+
+    document = ingestion.run(file_path=str(file_path),document_id=file_path.stem)
+
+    first = chunking.process(document)
+    second = chunking.process(document)
+
+    assert first == second
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    get_sample_files(SAMPLES_DIR, (".pdf",))
+    + get_sample_files(DOCX_SAMPLES_DIR, (".docx",)),
+    ids=lambda path: path.name,
+)
+def test_real_document_chunk_metadata(file_path):
+    ingestion = IngestionPipeline()
+    chunking = ChunkingPipeline()
+
+    document = ingestion.run(file_path=str(file_path),document_id=file_path.stem)
+    chunks = chunking.process(document)
+
+    assert chunks
+
+    for chunk in chunks:
+        assert chunk.chunk_id
+        assert chunk.document_id == document.document_id
+        assert chunk.chunk_index >= 0
+        assert chunk.content.strip()
+
+    indexes = [chunk.chunk_index for chunk in chunks]
+
+    assert indexes == list(range(len(chunks)))
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    get_sample_files(SAMPLES_DIR, (".pdf",))
+    + get_sample_files(DOCX_SAMPLES_DIR, (".docx",)),
+    ids=lambda path: path.name,
+)
+def test_real_document_pages_are_preserved(file_path):
+    ingestion = IngestionPipeline()
+    chunking = ChunkingPipeline()
+
+    document = ingestion.run(file_path=str(file_path),document_id=file_path.stem)
+    chunks = chunking.process(document)
+
+    document_pages = {
+        page.page_number
+        for page in document.pages
+        if page.content and page.content.strip()
+    }
+
+    chunk_pages = {
+        chunk.page_number
+        for chunk in chunks
+        if chunk.page_number is not None
+    }
+
+    assert chunk_pages.issubset(document_pages)
