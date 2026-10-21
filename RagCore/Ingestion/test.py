@@ -37,10 +37,18 @@ def test_pipeline_happy_path_pdf_success(mock_exists, mock_to_markdown):
     assert "PyMuPDF" in result.metadata["extraction_engine"]
 
 
+
 @patch("RagCore.Ingestion.vision_extraction.Groq")
 @patch.object(VisionExtractionEngine, "_encode_image_to_base64")
 @patch("os.path.exists")
-def test_pipeline_happy_path_direct_image_success(mock_exists, mock_encode, mock_groq_class):
+def test_pipeline_happy_path_direct_image_success(
+    mock_exists,
+    mock_encode,
+    mock_groq_class,
+    monkeypatch,
+):
+    monkeypatch.setenv("GROQ_API_KEY", "test-groq-api-key")
+
     mock_exists.return_value = True
     mock_encode.return_value = "fake_base64_string"
 
@@ -48,18 +56,26 @@ def test_pipeline_happy_path_direct_image_success(mock_exists, mock_encode, mock
     mock_response = MagicMock()
 
     mock_choice_element = MagicMock()
-    mock_choice_element.message.content = "| Items | Price |\n|---|---|\n| Coffee | $4.50 |"
+    mock_choice_element.message.content = (
+        "| Items | Price |\n"
+        "|---|---|\n"
+        "| Coffee | $4.50 |"
+    )
 
     mock_response.choices = [mock_choice_element]
     mock_client.chat.completions.create.return_value = mock_response
     mock_groq_class.return_value = mock_client
 
     pipeline = IngestionPipeline()
-    result = pipeline.run("uploads/receipt_screenshot.png", "image-uuid-222")
+    result = pipeline.run(
+        "uploads/receipt_screenshot.png",
+        "image-uuid-222",
+    )
 
     assert result.pages[0].page_number == 1
     assert "Coffee" in result.pages[0].content
     assert result.metadata["extraction_engine"] == "Groq Vision Engine"
+
 
 
 @patch("os.path.exists")
