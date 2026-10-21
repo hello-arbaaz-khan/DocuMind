@@ -37,7 +37,15 @@ jobs:
           --health-retries=5
 
     env:
+      DJANGO_BASE_URL: http://127.0.0.1:8000
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/test_db
+
+      GOOGLE_CLIENT_ID: ci-test-client-id
+      GOOGLE_CLIENT_SECRET: ci-test-client-secret
+
       SECRET_KEY: ci-test-secret
+      FERNET_KEY: ${{ secrets.CI_FERNET_KEY }}
+
       DEBUG: "False"
       DB_NAME: test_db
       DB_USER: postgres
