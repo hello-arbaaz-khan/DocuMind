@@ -11,9 +11,15 @@ on:
       - main
       - develop
 
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     services:
       postgres:
@@ -31,7 +37,15 @@ jobs:
           --health-retries=5
 
     env:
+      DJANGO_BASE_URL: http://127.0.0.1:8000
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/test_db
+
+      GOOGLE_CLIENT_ID: ci-test-client-id
+      GOOGLE_CLIENT_SECRET: ci-test-client-secret
+
       SECRET_KEY: ci-test-secret
+      FERNET_KEY: ${{ secrets.CI_FERNET_KEY }}
+
       DEBUG: "False"
       DB_NAME: test_db
       DB_USER: postgres
@@ -46,12 +60,18 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12.3"
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            drive_service/requirements.txt
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install \
+            -r requirements.txt \
+            -r drive_service/requirements.txt
 
       - name: Enable pgvector
         run: |
