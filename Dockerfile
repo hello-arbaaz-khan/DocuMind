@@ -10,10 +10,16 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install dependencies
+# Install Django and Google Drive/Celery dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
-RUN pip install --no-cache-dir -r requirements.txt
+COPY drive_service/requirements.txt /tmp/drive-requirements.txt
+
+RUN pip install --no-cache-dir torch \
+    --index-url https://download.pytorch.org/whl/cpu
+
+RUN pip install --no-cache-dir --timeout 300 --retries 5 \
+    -r requirements.txt \
+    -r /tmp/drive-requirements.txt
 
 # Copy project
 COPY . .

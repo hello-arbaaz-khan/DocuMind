@@ -71,12 +71,9 @@ def _build_flow() -> Flow:
             }
         },
         scopes=settings.google_drive_scopes,
-        redirect_uri=(
-            f"{settings.drive_service_base_url}/api/v1/drive/callback"
-        ),
+        redirect_uri=settings.google_redirect_uri
     )
-
-
+    
 def _raise_drive_error(action: str, error: Exception):
     if isinstance(error, (TimeoutError, socket.timeout)):
         raise HTTPException(
