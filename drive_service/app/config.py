@@ -23,8 +23,10 @@ class Settings(BaseSettings):
     google_client_secret: str
     fernet_key: str
     state_signing_secret: str | None = None
+    
     redis_url: str = "redis://127.0.0.1:6379/0"
     drive_service_base_url: str = "http://localhost:8001"
+    google_redirect_uri: str = "http://localhost:8001/api/v1/drive/callback"
     frontend_base_url: str = "http://localhost:3000"
     cors_extra_origins: list[str] = []
 
