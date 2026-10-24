@@ -48,7 +48,7 @@ const LoginPage = ({ onNavigate }) => {
       illustration={<DocumentsIllustration />}
       features={FEATURES}
       formTitle="Welcome back"
-      formSubtitle="Sign in to your RAG Agent account"
+      formSubtitle="Sign in to your DocuMind AI account"
       footer={
         <>
           Don&apos;t have an account?{" "}

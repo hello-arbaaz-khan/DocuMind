@@ -78,7 +78,7 @@ const QuickInfoPanel = ({ onClose, onNavigate = () => {} }) => {
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-300">RAG Agent</p>
+              <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-300">DocuMind AI</p>
               <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-300">
                 Searches your documents, provides accurate answers with sources.
               </p>
