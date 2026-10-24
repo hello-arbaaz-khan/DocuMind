@@ -11,7 +11,6 @@ import {
   PenSquare,
   Search,
   Settings,
-  Sparkles,
   Trash2
 } from "lucide-react";
 import { useAppContext } from "../../context/AppContext";
@@ -115,9 +114,11 @@ const Sidebar = ({
   if (collapsed) {
     return (
       <aside className="flex h-full w-[76px] flex-col items-center gap-4 border-r border-slate-200 bg-white py-4 dark:border-white/5 dark:bg-[#0b0f19]">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600">
-          <Sparkles className="h-5 w-5 text-white" />
-        </div>
+        <img
+          src="/icons/documind-ai.png"
+          alt="DocuMind AI"
+          className="h-10 w-10 rounded-xl object-contain"
+        />
         <button
           type="button"
           onClick={onToggleCollapse}
@@ -175,12 +176,14 @@ const Sidebar = ({
     <aside className="flex h-full w-full flex-col border-r border-slate-200 bg-white p-4 dark:border-white/5 dark:bg-[#0b0f19] lg:w-[300px]">
       <div className="mb-5 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600">
-            <Sparkles className="h-5 w-5 text-white" />
-          </div>
+          <img
+            src="/icons/documind-ai.png"
+            alt="DocuMind AI"
+            className="h-9 w-9 shrink-0 rounded-xl object-contain"
+          />
           <div className="min-w-0">
             <h1 className="truncate text-base font-bold text-slate-900 dark:text-white">
-              RAG Agent
+              DocuMind AI
             </h1>
             <p className="truncate text-xs text-slate-500 dark:text-slate-400">
               Chat with your documents

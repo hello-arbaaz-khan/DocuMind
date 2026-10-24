@@ -59,7 +59,7 @@ const UploadModal = ({ open, onClose }) => {
         <div className="mb-5 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-extrabold text-white">Upload document</h2>
-            <p className="text-sm text-slate-400">Add a source file for the RAG agent.</p>
+            <p className="text-sm text-slate-400">Add a source file for the DocuMind AI.</p>
           </div>
           <button
             type="button"

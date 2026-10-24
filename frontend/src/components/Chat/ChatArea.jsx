@@ -56,8 +56,12 @@ const WelcomeScreen = () => {
   return (
     <div className="flex h-full items-center justify-center p-6">
       <div className="max-w-xl text-center">
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600">
-          <Sparkles className="h-7 w-7 text-white" />
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl">
+          <img
+            src="/icons/documind-ai.png"
+            alt="DocuMind AI"
+            className="h-16 w-16 rounded-2xl object-contain"
+          />
         </div>
 
         <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white">
