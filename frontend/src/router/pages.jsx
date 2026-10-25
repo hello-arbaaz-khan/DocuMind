@@ -5,6 +5,7 @@ import DocumentsView from "../components/Documents/DocumentsView";
 import AdvancedSearch from "../components/Search/AdvancedSearch";
 import DriveConnection from "../components/Drive/DriveConnection";
 import ChangePasswordPage from "../components/Auth/ChangePasswordPage";
+import Dashboard from "../components/Dashboard/Dashboard";
 import { PATHS } from "./paths";
 
 export const NewChatPage = () => {
@@ -32,6 +33,17 @@ export const ChatPage = () => {
     <ChatArea
       key={id}
       conversationId={id}
+      onUploadClick={openUpload}
+      onNavigate={navigateToView}
+    />
+  );
+};
+
+export const DashboardPage = () => {
+  const { openUpload, navigateToView } = useOutletContext();
+
+  return (
+    <Dashboard
       onUploadClick={openUpload}
       onNavigate={navigateToView}
     />
