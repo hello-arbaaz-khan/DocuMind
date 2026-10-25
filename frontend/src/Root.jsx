@@ -1,6 +1,12 @@
-
 import { Suspense } from "react";
-import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import {
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom";
+
 import App from "./App.jsx";
 import AuthPage from "./components/Auth/AuthPage.jsx";
 import DriveCallbackPage from "./components/Drive/DriveCallbackPage.jsx";
@@ -9,10 +15,11 @@ import { useAuth } from "./context/AuthContext";
 import { AUTH_SCREEN_PATHS, PATHS } from "./router/paths";
 import {
   ChatPage,
+  DashboardPage,
   DocumentsPage,
   NewChatPage,
   SearchPage,
-  SettingsPage
+  SettingsPage,
 } from "./router/pages.jsx";
 
 const ProtectedRoute = () => {
@@ -20,7 +27,13 @@ const ProtectedRoute = () => {
   const location = useLocation();
 
   if (!isAuthenticated) {
-    return <Navigate to={PATHS.login} replace state={{ from: location }} />;
+    return (
+      <Navigate
+        to={PATHS.login}
+        replace
+        state={{ from: location }}
+      />
+    );
   }
 
   return <Outlet />;
@@ -32,9 +45,10 @@ const PublicOnlyRoute = () => {
 
   if (isAuthenticated) {
     const from = location.state?.from;
+
     const target = from?.pathname
       ? `${from.pathname}${from.search || ""}`
-      : PATHS.newChat;
+      : PATHS.dashboard;
 
     return <Navigate to={target} replace />;
   }
@@ -46,36 +60,80 @@ const IndexRedirect = () => {
   const { search } = useLocation();
 
   if (new URLSearchParams(search).has("drive_status")) {
-    return <Navigate to={`${PATHS.driveCallback}${search}`} replace />;
+    return (
+      <Navigate
+        to={`${PATHS.driveCallback}${search}`}
+        replace
+      />
+    );
   }
 
-  return <Navigate to={PATHS.newChat} replace />;
+  return <Navigate to={PATHS.dashboard} replace />;
 };
 
 const Root = () => (
   <ErrorBoundary>
-    <Suspense fallback={<div className="flex h-screen items-center justify-center bg-brand-bg" />}>
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center bg-brand-bg" />
+      }
+    >
       <Routes>
         <Route path="/" element={<IndexRedirect />} />
-        <Route path={PATHS.driveCallback} element={<DriveCallbackPage />} />
+
+        <Route
+          path={PATHS.driveCallback}
+          element={<DriveCallbackPage />}
+        />
 
         <Route element={<PublicOnlyRoute />}>
           {Object.entries(AUTH_SCREEN_PATHS).map(([screen, path]) => (
-            <Route key={screen} path={path} element={<AuthPage screen={screen} />} />
+            <Route
+              key={screen}
+              path={path}
+              element={<AuthPage screen={screen} />}
+            />
           ))}
         </Route>
 
         <Route element={<ProtectedRoute />}>
           <Route element={<App />}>
-            <Route path={PATHS.newChat} element={<NewChatPage />} />
-            <Route path="/chat/:conversationId" element={<ChatPage />} />
-            <Route path={PATHS.documents} element={<DocumentsPage />} />
-            <Route path={PATHS.search} element={<SearchPage />} />
-            <Route path={PATHS.settings} element={<SettingsPage />} />
+            <Route
+              path={PATHS.dashboard}
+              element={<DashboardPage />}
+            />
+
+            <Route
+              path={PATHS.newChat}
+              element={<NewChatPage />}
+            />
+
+            <Route
+              path="/chat/:conversationId"
+              element={<ChatPage />}
+            />
+
+            <Route
+              path={PATHS.documents}
+              element={<DocumentsPage />}
+            />
+
+            <Route
+              path={PATHS.search}
+              element={<SearchPage />}
+            />
+
+            <Route
+              path={PATHS.settings}
+              element={<SettingsPage />}
+            />
           </Route>
         </Route>
 
-        <Route path="*" element={<Navigate to={PATHS.newChat} replace />} />
+        <Route
+          path="*"
+          element={<Navigate to={PATHS.dashboard} replace />}
+        />
       </Routes>
     </Suspense>
   </ErrorBoundary>

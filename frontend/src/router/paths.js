@@ -13,7 +13,8 @@ export const PATHS = {
   verifyOtp: "/verify-otp",
   forgotPassword: "/forgot-password",
   resetPassword: "/reset-password",
-  driveCallback: "/drive/callback"
+  driveCallback: "/drive/callback",
+  dashboard: "/dashboard",
 };
 
 export const AUTH_SCREEN_PATHS = {
@@ -28,6 +29,7 @@ export const viewFromPath = (pathname) => {
   if (pathname.startsWith("/search")) return "search";
   if (pathname.startsWith("/documents")) return "documents";
   if (pathname.startsWith("/settings")) return "settings";
+  if (pathname.startsWith("/dashboard")) return "dashboard";
   return "chat";
 };
 
@@ -48,6 +50,9 @@ export const useViewNavigate = () => {
       case "chat":
       default:
         navigate(PATHS.newChat);
+      case "dashboard":
+        navigate(PATHS.dashboard);
+        break;
     }
   }, [navigate]);
 };

@@ -567,7 +567,7 @@ const ChatArea = ({ conversationId, onUploadClick }) => {
 
   return (
     <main className="flex h-full min-w-0 flex-1 flex-col bg-white dark:bg-brand-bg">
-      <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+      {/* <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
         <div className="min-w-0">
           <h2 className="truncate text-lg font-bold text-slate-900 dark:text-white">
             {currentConversation?.title || "New chat"}
@@ -601,7 +601,7 @@ const ChatArea = ({ conversationId, onUploadClick }) => {
             </button>
           ) : null}
         </div>
-      </header>
+      </header> */}
 
       {showDocumentPicker ? (
         <section className="border-b border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
