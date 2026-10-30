@@ -18,7 +18,13 @@ const pageSummary = (sources = []) => {
 
   return `Sources: page${pages.length > 1 ? "s" : ""} ${pages.join(", ")}`;
 };
+const normalizeMarkdown = (content) => {
+  if (typeof content !== "string") return "";
 
+  return content
+    .replace(/&lt;br\s*\/?&gt;/gi, " · ")
+    .replace(/<br\s*\/?>/gi, " · ");
+};
 const MarkdownContent = ({ content }) => (
   <div
     className="
@@ -71,7 +77,7 @@ const MarkdownContent = ({ content }) => (
         },
       }}
     >
-      {typeof content === "string" ? content : ""}
+      {normalizeMarkdown(content)}
     </ReactMarkdown>
   </div>
 );
