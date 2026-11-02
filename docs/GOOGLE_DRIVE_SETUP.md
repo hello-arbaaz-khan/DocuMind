@@ -1,5 +1,3 @@
-> Reviewed against `hello-arbaaz-khan/DocuMind`, branch `develop`, commit `72d6365f1547d729a5310672477b764efde4a795` (2 November 2026). Re-check source code when routes or implementation change.
-
 ### 4.5 Google Drive connection and sync
 
 ``` text
