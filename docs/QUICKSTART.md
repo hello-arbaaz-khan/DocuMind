@@ -1,47 +1,58 @@
-# Quickstart — Rag-Agent (develop)
+## 8. Run the project locally with Docker
 
-This guide highlights the most common steps to get Rag-Agent running for backend development or local Docker usage. For full details, see docs/API.md and docs/ARCHITECTURE.md.
+1.  Install Docker Engine and the Docker Compose plugin.
+2.  Clone the repository and switch to `develop`.
+3.  Create active environment files from the examples:
 
-Docker (recommended for parity)
-1. Copy example Docker env files to active files:
-   - cp .env.docker.example .env.docker
-   - cp drive_service/.env.docker.example drive_service/.env.docker
-2. Build and start the stack:
-   - docker compose up --build
-3. Services included in compose:
-   - db (Postgres with pgvector), redis, web (Django), worker (Celery), drive_service
-4. Run migrations (from web container or host configured to talk to the DB):
-   - python manage.py migrate
-5. Create a superuser:
-   - python manage.py createsuperuser
+```bash
+cp .env.docker.example .env.docker
+cp drive_service/.env.docker.example drive_service/.env.docker
+```
 
-Local development
-1. Create a virtualenv and install dependencies:
-   - python -m venv .venv && source .venv/bin/activate
-   - pip install -r requirements.txt
-2. Configure .env using .env.example
-3. Ensure Postgres has pgvector enabled (before migrations):
-   - psql -U <user> -d <db> -c "CREATE EXTENSION IF NOT EXISTS vector;"
-4. Run migrations and start Django and Celery:
-   - python manage.py migrate
-   - python manage.py runserver
-   - celery -A core worker -l info
+4.  Edit the two files and supply real application secrets and API
+    credentials. Generate strong unique values for Django secret, Fernet
+    key and OAuth state signing secret.
+5.  Build and start the services:
 
-Database notes
-- Default compose publishes Postgres on host port 5433 and Redis on 6380; check docker-compose.yml and the .env.docker.example values to confirm port mapping.
-- Enable the pgvector extension in your DB prior to running migrations.
+```bash
+docker compose up --build -d
+```
 
-Document processing flow (brief)
-1. Upload document via API
-2. Celery task extracts text, chunks it, generates embeddings, and stores vectors in Postgres
-3. Query flows embed the question and run similarity search to retrieve chunks
-4. Chunks are passed to the LLM to generate answers with cited sources
+6.  Apply database migrations:
 
-Troubleshooting
-- DB connection refused: confirm DB container is running and DB_HOST/DB_PORT match compose or local settings
-- Redis connection refused: verify Redis container and the CELERY_BROKER_URL
-- Celery tasks not running: ensure Celery worker has started and uses the same broker
+```bash
+docker compose exec django python manage.py migrate
+```
 
-If you'd like, I can:
-- Open a PR that updates README.md and docs/QUICKSTART.md on `develop`
-- Add LICENSE, CONTRIBUTING.md, and GitHub Actions workflows in a follow-up
+7.  Create an administrator if required:
+
+```bash
+docker compose exec django python manage.py createsuperuser
+```
+
+8.  Check service status and logs:
+
+```bash
+docker compose ps
+docker compose logs -f django drive_service celery_worker
+```
+
+9.  Open:
+    - Frontend: `http://localhost:3000`
+    - Django admin: `http://localhost:8000/admin/`
+    - FastAPI Swagger: `http://localhost:8001/docs`
+10. Test signup, OTP, login, upload, processing status, chat, search and
+    Drive connection separately.
+
+Stop the stack:
+
+```bash
+docker compose down
+```
+
+Stop and remove local database/media volumes only when you intentionally
+want to erase local data:
+
+```bash
+docker compose down -v
+```

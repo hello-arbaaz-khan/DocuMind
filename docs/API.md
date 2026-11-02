@@ -1,191 +1,146 @@
-# API Reference
+## 5. API route reference
 
-The FastAPI service is the document, chat, search, and Google Drive API:
+Base URLs in local development:
 
-```text
-http://localhost:8001
-```
+- Django authentication: `http://localhost:8000`
+- FastAPI application API: `http://localhost:8001`
+- FastAPI interactive docs: `http://localhost:8001/docs`
 
-Interactive OpenAPI documentation is available at `/docs`. Django serves
-authentication separately at `http://localhost:8000`.
+### Authentication --- Django
 
-## Authentication
+---
 
-Create an account with `POST http://localhost:8000/api/auth/signup/`:
+Method Route Purpose
 
-```json
-{
-  "email": "you@example.com",
-  "password": "your-password",
-  "display_name": "Your Name"
-}
-```
+---
 
-Verify the emailed four-digit OTP using
-`POST /api/auth/signup/verify-otp/` with `email` and `otp`. The response
-contains `data.tokens.access` and `data.tokens.refresh`. Alternatively, an
-active account can sign in with `POST /api/auth/login/` and `email` /
-`password`. Send the access token to protected FastAPI routes as:
+POST `/api/auth/signup/` Create pending account
+and send OTP
 
-```http
-Authorization: Bearer <access-token>
-```
+POST `/api/auth/signup/verify-otp/` Verify signup OTP and
+activate account
 
-Refresh an expired access token with `POST /api/auth/token/refresh/` and a
-JSON `refresh` field. The API checks the token signature and expiry and
-rejects deleted or inactive Django users.
+POST `/api/auth/signup/resend-otp/` Resend signup OTP
 
-## Documents
+POST `/api/auth/login/` Sign in and issue
+tokens
 
-All document routes require a bearer access token.
+POST `/api/auth/password/forgot/` Start password reset
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `POST` | `/api/v1/documents` | Upload and queue a document |
-| `GET` | `/api/v1/documents` | List the authenticated user's documents |
-| `GET` | `/api/v1/documents/{document_id}` | Retrieve document details and processing status |
-| `DELETE` | `/api/v1/documents/{document_id}` | Delete an owned document |
+POST `/api/auth/password/reset/` Reset password
 
-Upload as `multipart/form-data` with a `file` field. Supported extensions are
-PDF, DOC, DOCX, TXT, JPG, JPEG, PNG, WEBP, and TIFF; the maximum size is 50 MB.
-A successful upload returns `202 Accepted` with a document record. Processing
-runs in Celery; poll `GET /api/v1/documents/{document_id}` until
-`is_processed` is true or `processing_error` is non-empty. The same endpoint
-serves as the status endpoint; there is no separate `/status` route.
+POST `/api/auth/password/change/` Change password
 
-Uploads are deduplicated per user by file hash. A duplicate returns `409
-Conflict` and includes the existing document ID.
+POST `/api/auth/verify-otp/` Generic OTP
+verification
 
-## Chat
+POST `/api/auth/token/refresh/` Refresh access token
 
-`POST /api/v1/chat` requires a bearer token and accepts:
+---
 
-```json
-{
-  "question": "What is this document about?",
-  "document_id": 1
-}
-```
+### Documents --- FastAPI
 
-The document must belong to the authenticated user and be processed. The
-response contains the answer and its `chat_history_id`. An inaccessible
-document returns `404`; a document that is still processing returns `409`.
-Chat retrieves from the user's document through the existing RagCore retrieval
-and reranking pipeline, generates an answer, and persists it in Django
-`ChatHistory`.
+---
 
-## Chat history
+Method Route Purpose
 
-Chat history is stored by document and can be listed or cleared by the owner.
+---
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/api/v1/chat/history/{document_id}` | Return chat turns for an owned document, oldest first |
-| `DELETE` | `/api/v1/chat/history/{document_id}` | Delete all chat history for an owned document |
+POST `/api/v1/documents` Upload and queue
+indexing
 
-Each item contains `id`, `question`, `answer`, and `created_at`.
+GET `/api/v1/documents` List current user's
+documents
 
-## Drive status
+GET `/api/v1/documents/{document_id}` Get document and
+processing status
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/api/v1/drive/status` | Returns `connected`, `google_email`, and `connected_at` for the current authenticated user |
+DELETE `/api/v1/documents/{document_id}` Delete an owned
+document
 
-If no Google account is linked, the response is `{"connected": false}`.
+---
 
-## Document search
+### Conversations and chat --- FastAPI
 
-`GET /api/v1/search` requires a bearer token. Supported query parameters:
+---
 
-| Parameter | Values / format | Default |
-|---|---|---|
-| `query` | Optional text query | — |
-| `uploaded_after` | `YYYY-MM-DD`, inclusive | — |
-| `uploaded_before` | `YYYY-MM-DD`, inclusive | — |
-| `file_type` | `pdf`, `doc`, `docx`, `txt`, `image` | — |
-| `order_by` | `uploaded_at` or `name` | `uploaded_at` |
-| `order` | `asc` or `desc` | `desc` |
-| `limit` | 1–100 | `20` |
-| `offset` | 0 or greater | `0` |
+Method Route Purpose
 
-Without `query`, this lists matching document metadata. With `query`, it searches
-processed documents owned by the authenticated user using the existing
-sentence-transformer embeddings and pgvector retrieval, combined with
-PostgreSQL full-text search over document chunks. Exact filename queries (for
-example, `find Pakistan War.pdf`) prioritize the matching filename. Manual
-uploads and Google Drive documents are searched together from the same
-`UploadedDocument` records. Results are unique documents and include a
-`relevance_score` and, when available, a `matched_snippet`; search does not
-generate an answer.
+---
 
-Examples:
+POST `/api/v1/chat/conversations` Create conversation;
+may attach document IDs
 
-```text
-GET /api/v1/search?query=political%20information
-GET /api/v1/search?query=find%20Pakistan%20War.pdf
-```
+GET `/api/v1/chat/conversations` List current user's
+conversations
 
-The response contains `results`, `count`, `limit`, and `offset`.
+GET `/api/v1/chat/conversations/{conversation_id}` Get conversation and
+attached documents
 
-## Google Drive
+POST `/api/v1/chat/conversations/{conversation_id}/documents` Attach existing
+documents
 
-These endpoints require a bearer access token, except for the OAuth callback,
-which is authorized by its signed, single-use OAuth state.
+POST `/api/v1/chat/conversations/{conversation_id}/documents/upload` Upload documents into a
+conversation
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/api/v1/drive/connect` | Return the Google authorization URL |
-| `GET` | `/api/v1/drive/callback` | Google OAuth redirect callback |
-| `DELETE` | `/api/v1/drive/disconnect` | Disconnect the current user's Google account |
-| `POST` | `/api/v1/drive/sync` | Queue a sync for the connected user's Drive |
-| `GET` | `/api/v1/drive/files` | List Drive files (`page_size`, optional `page_token`) |
-| `GET` | `/api/v1/drive/files/{file_id}/download` | Download Drive content as base64; requires `name` and `mime_type` query parameters |
+POST `/api/v1/chat/conversations/{conversation_id}/messages` Send a question and
+receive an answer
 
-Google OAuth credentials, a connected account, PostgreSQL migrations, and
-Redis are required to exercise Drive operations. OAuth callback redirects to
-the configured frontend URL and queues an initial Drive sync. The explicit
-sync endpoint returns `202 Accepted` with the Celery task ID. Supported Drive
-files are stored as `UploadedDocument` records with `source=google_drive` and
-processed through the existing document task, Workflow, and RagCore pipeline.
-Google Docs, Sheets, and Slides are exported as DOCX, XLSX, and PDF; Google
-Workspace exports larger than the Drive API's 10 MB export limit are skipped.
+GET `/api/v1/chat/conversations/{conversation_id}/messages` Read conversation
+messages
 
-## Services and local setup
+DELETE `/api/v1/chat/conversations/{conversation_id}` Delete a conversation
+(confirm exact behavior
+in current router
+before client
+integration)
 
-The end-to-end upload/chat flow requires PostgreSQL with pgvector, Redis,
-Django, the Celery worker, and FastAPI. With Docker Compose, start the
-services and apply Django migrations before API use:
+---
 
-```bash
-docker compose up --build -d
-docker compose exec django python manage.py migrate
-```
+### Search --- FastAPI
 
-The service URLs are `http://localhost:8000` for Django authentication and
-`http://localhost:8001` for FastAPI. Compose exposes PostgreSQL on host port
-`5433` and Redis on host port `6380`; containers use their internal service
-addresses.
+---
 
-## Frontend routing
+Method Route Purpose
 
-The React app is routed by the browser and the sidebar uses URL-driven state.
+---
 
-| URL | Screen |
-|---|---|
-| `/` | Redirect to `/new` |
-| `/new` | New chat / welcome screen |
-| `/chat/:documentId` | Document chat |
-| `/documents` | Document library |
-| `/search` | Advanced search |
-| `/settings` | Settings and Drive connection |
-| `/login` | Sign in |
-| `/signup` | Create account |
-| `/verify-otp` | OTP verification |
-| `/forgot-password` | Reset password request |
-| `/reset-password` | Reset password |
-| `/drive/callback` | Google Drive OAuth callback page |
+GET `/api/v1/search` Browse/filter documents
+or search their content
 
-Vite proxies `/api/auth` to Django and `/api/v1` to the FastAPI service using
-`DJANGO_URL` and `API_URL` environment variables. Local Vite defaults are
-`http://localhost:8000` and `http://localhost:8001`; Docker Compose sets these
-to `http://django:8000` and `http://drive_service:8001` on the Compose network.
+---
+
+Typical query parameters include `query`, `uploaded_after`,
+`uploaded_before`, `file_type`, `order_by`, `order`, `limit` and
+`offset`.
+
+### Google Drive --- FastAPI
+
+---
+
+Method Route Purpose
+
+---
+
+GET `/api/v1/drive/connect` Generate Google
+authorization URL
+
+GET `/api/v1/drive/status` Check current user's
+Drive connection
+
+GET `/api/v1/drive/callback` OAuth callback
+
+DELETE `/api/v1/drive/disconnect` Disconnect account
+
+POST `/api/v1/drive/sync` Queue Drive
+synchronization
+
+GET `/api/v1/drive/files` List Drive files
+
+GET `/api/v1/drive/files/{file_id}/download` Download file content
+
+---
+
+All protected FastAPI endpoints require the Django-issued bearer access
+token. The OAuth callback is validated using its signed state rather
+than a normal logged-in browser request.
