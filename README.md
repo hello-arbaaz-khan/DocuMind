@@ -187,10 +187,3 @@ Arbaz Khan
 GitHub: https://github.com/hello-arbaaz-khan
 
 ---
-
-If you want, I can:
-- Commit this README.md directly to the repository (create a branch & PR) and include the cleaned .env.example and drive_service/.env.example updates.
-- Draft a GitHub Actions workflow that runs tests and linters on PRs.
-- Produce CONTRIBUTING.md and a minimal LICENSE file (MIT) and open a PR with those files.
-
-Tell me which of these you'd like me to do next.  
