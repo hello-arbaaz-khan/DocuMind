@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'apps.drive',
     'apps.integrations',
     'rest_framework_simplejwt',
+    "django.contrib.postgres",
 ]
 
 AUTH_USER_MODEL = "auth_manager.User"

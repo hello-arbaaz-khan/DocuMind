@@ -1,6 +1,6 @@
 from django.db import models
 from django.conf import settings
-from pgvector.django import VectorField
+from pgvector.django import VectorField, HnswIndex
 from RagCore.Ingestion.document import ALL_ALLOWED_EXTENSIONS
 
 
@@ -84,6 +84,9 @@ class DocumemtsChunk(models.Model):
         verbose_name = "Document chunk"
         verbose_name_plural = "Document chunks"
         ordering = ['id']
-
+        
+        indexes = [HnswIndex(name="chunk_embedding_hnsw",fields=["embedding"],
+        m=16,ef_construction=64,opclasses=["vector_cosine_ops"],),
+        ]
     def __str__(self):
         return f"Docu {self.document.name} | Chunk_index {self.chunk_index} | Page {self.page_number}"
