@@ -106,11 +106,14 @@ const ChatMessage = ({ message, onRetry }) => {
           isUser ? "items-end" : "items-start"
         }`}
       >
+        {/* CHANGED: no background/border/shadow while pending */}
         <div
-          className={`min-w-0 max-w-full rounded-xl px-4 py-3 text-sm leading-6 shadow-lg ${
+          className={`min-w-0 max-w-full text-sm leading-6 ${
             isUser
-              ? "bg-gradient-to-r from-blue-700 to-violet-700 text-white shadow-blue-950/30"
-              : "border border-slate-700 bg-slate-800 text-slate-100 shadow-slate-950/30"
+              ? "rounded-xl bg-gradient-to-r from-blue-700 to-violet-700 px-4 py-3 text-white shadow-lg shadow-blue-950/30"
+              : isPending
+                ? "px-1 py-3 text-slate-400"
+                : "rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-slate-100 shadow-lg shadow-slate-950/30"
           }`}
         >
           {isUser ? (

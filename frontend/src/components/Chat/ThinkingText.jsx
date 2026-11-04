@@ -26,12 +26,12 @@ const ThinkingText = () => {
       <span className="tracking-wide text-slate-300">
         {WORD.slice(0, Math.min(count, WORD.length))}
 
-        <span className={`think-dot ${complete ? "think-dot-pulse think-dot-1" : ""}`}>
+        {/* <span className={`think-dot ${complete ? "think-dot-pulse think-dot-1" : ""}`}>
           {count > WORD.length ? "." : ""}
         </span>
         <span className={`think-dot ${complete ? "think-dot-pulse think-dot-2" : ""}`}>
           {count > WORD.length + 1 ? "." : ""}
-        </span>
+        </span> */}
 
         {!complete && (
           <span className="think-caret ml-0.5 inline-block h-3.5 w-[2px] translate-y-[2px] bg-slate-300" />
