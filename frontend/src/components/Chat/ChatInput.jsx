@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
@@ -23,6 +22,7 @@ const ChatInput = ({
   const [mode, setMode] = useState(SEARCH_MODES[0]);
   const [modeOpen, setModeOpen] = useState(false);
   const menuRef = useRef(null);
+  const textareaRef = useRef(null); // ADDED: internal ref used for auto-grow
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -34,6 +34,14 @@ const ChatInput = ({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // ADDED: resize the textarea whenever the text changes
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
 
   const handleKeyDown = (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -54,10 +62,15 @@ const ChatInput = ({
           : "border-t border-slate-200/80 bg-white p-3 sm:p-4 dark:border-white/[0.07] dark:bg-[#101522]"
       }
     >
-      <div className="mx-auto w-full max-w-4xl">
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm transition focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-500/[0.08] dark:border-white/[0.12] dark:bg-[#171d2b] dark:focus-within:border-blue-500/60 dark:focus-within:ring-blue-500/[0.08]">
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.12] dark:bg-[#171d2b]">
           <textarea
-            ref={inputRef}
+            // CHANGED: assigns both the internal ref and the parent's inputRef
+            ref={(el) => {
+              textareaRef.current = el;
+              if (typeof inputRef === "function") inputRef(el);
+              else if (inputRef) inputRef.current = el;
+            }}
             value={value}
             onChange={(event) => setValue(event.target.value)}
             disabled={disabled || loading}
@@ -67,7 +80,8 @@ const ChatInput = ({
                 ? "Document is still processing…"
                 : "Ask anything about your documents..."
             }
-            className="max-h-40 min-h-[58px] w-full resize-none bg-transparent px-4 pt-4 text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-100 dark:placeholder:text-slate-500"
+            // CHANGED: added overflow-y-auto so it scrolls after reaching max-h-40
+            className="max-h-40 min-h-[28px] w-full resize-none overflow-y-auto border-0 bg-transparent px-4 pt-4 text-sm leading-6 text-slate-900 outline-none focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-100 dark:placeholder:text-slate-500"
             onKeyDown={handleKeyDown}
           />
 
@@ -82,14 +96,14 @@ const ChatInput = ({
                 <Paperclip className="h-4 w-4" />
               </button>
 
-              <button
+              {/* <button
                 type="button"
                 title="Web search is not currently connected"
                 aria-label="Web search (not currently connected)"
                 className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/[0.07] dark:hover:text-slate-300"
               >
                 <Globe className="h-4 w-4" />
-              </button>
+              </button> */}
 
               <div className="relative" ref={menuRef}>
                 <button
@@ -131,14 +145,14 @@ const ChatInput = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <button
+              {/* <button
                 type="button"
                 title="Smart suggestions are not currently connected"
                 aria-label="Smart suggestions (not currently connected)"
                 className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:border-white/10 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-slate-200"
               >
                 <Sparkles className="h-4 w-4" />
-              </button>
+              </button> */}
 
               <button
                 type="submit"
